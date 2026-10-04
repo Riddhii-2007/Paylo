@@ -45,7 +45,7 @@ function App() {
     return <div className="min-h-screen bg-cream dark:bg-navy" />
   }
 
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_SEED === 'true') {
     seedDevData()
   }
 
