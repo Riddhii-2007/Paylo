@@ -57,10 +57,11 @@ describe('renameCategory', () => {
 })
 
 describe('deleteCategoryAndReassign', () => {
-  it('deletes the category and reassigns expenses to target', () => {
+  it('deletes the category and reassigns expenses to chosen target', () => {
     const cats = [
       { id: 'food', name: 'Food', emoji: '🍔' },
-      { id: 'other', name: 'Other', emoji: '✨' }
+      { id: 'other', name: 'Other', emoji: '✨' },
+      { id: 'shopping', name: 'Shopping', emoji: '🛍️' }
     ]
     const exps = [
       { id: 1, categoryId: 'food', amount: 100 },
@@ -68,13 +69,35 @@ describe('deleteCategoryAndReassign', () => {
       { id: 3, categoryId: 'other', amount: 50 }
     ]
 
-    const result = deleteCategoryAndReassign('food', 'other', cats, exps)
-    expect(result.updatedCategories).toHaveLength(1)
-    expect(result.updatedCategories[0].id).toBe('other')
+    const result = deleteCategoryAndReassign('food', 'shopping', cats, exps)
+    expect(result.updatedCategories).toHaveLength(2)
+    expect(result.updatedCategories.find(c => c.id === 'food')).toBeUndefined()
 
     expect(result.updatedExpenses).toHaveLength(3)
-    expect(result.updatedExpenses.find(e => e.id === 1).categoryId).toBe('other')
-    expect(result.updatedExpenses.find(e => e.id === 2).categoryId).toBe('other')
+    expect(result.updatedExpenses.find(e => e.id === 1).categoryId).toBe('shopping')
+    expect(result.updatedExpenses.find(e => e.id === 2).categoryId).toBe('shopping')
     expect(result.updatedExpenses.find(e => e.id === 3).categoryId).toBe('other')
+  })
+
+  it('moves to Other by default if target is other', () => {
+    const cats = [
+      { id: 'food', name: 'Food', emoji: '🍔' },
+      { id: 'other', name: 'Other', emoji: '✨' }
+    ]
+    const exps = [{ id: 1, categoryId: 'food', amount: 100 }]
+    const result = deleteCategoryAndReassign('food', 'other', cats, exps)
+    expect(result.updatedExpenses[0].categoryId).toBe('other')
+  })
+
+  it('handles deleting a category with zero expenses', () => {
+    const cats = [
+      { id: 'food', name: 'Food', emoji: '🍔' },
+      { id: 'other', name: 'Other', emoji: '✨' }
+    ]
+    const exps = [{ id: 1, categoryId: 'other', amount: 100 }]
+    
+    const result = deleteCategoryAndReassign('food', 'other', cats, exps)
+    expect(result.updatedCategories).toHaveLength(1)
+    expect(result.updatedExpenses[0].categoryId).toBe('other') // unmodified
   })
 })
