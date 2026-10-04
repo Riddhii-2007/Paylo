@@ -8,6 +8,8 @@ import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { exportJson, importJson, requestPersistentStorage } from '../lib/backup'
+import { formatDate } from '../lib/format'
 
 export function Settings() {
   const settingsArr = useLiveQuery(() => db.settings.toArray())
@@ -24,6 +26,7 @@ export function Settings() {
   const [reassignTo, setReassignTo] = useState('other')
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isResetOpen, setIsResetOpen] = useState(false)
+  const [isImportOpen, setIsImportOpen] = useState(false)
   
   useEffect(() => {
     if (settingsArr) {
@@ -113,6 +116,34 @@ export function Settings() {
     // The App component will automatically detect no settings and show Setup
   }
 
+  const handleExportJson = async () => {
+    try {
+      const blob = await exportJson()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mytracker-backup-${formatDate(new Date().toISOString())}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
+  const handleImportJson = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      await importJson(file)
+      alert("Import successful!")
+      setIsImportOpen(false)
+    } catch (e) {
+      alert("Import failed: " + e.message)
+    } finally {
+      e.target.value = ''
+    }
+  }
+
   if (!settingsArr) return null
 
   return (
@@ -161,6 +192,18 @@ export function Settings() {
               )}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mb-10 pt-8 border-t border-navy/10 dark:border-gold/10">
+        <h2 className="font-serif text-xl text-navy dark:text-cream mb-4">Data & Backup</h2>
+        <div className="flex flex-col gap-3">
+          <Button variant="ghost" className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5" onClick={handleExportJson}>
+            Export Backup (JSON)
+          </Button>
+          <Button variant="ghost" className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5" onClick={() => setIsImportOpen(true)}>
+            Import Backup
+          </Button>
         </div>
       </section>
 
@@ -243,6 +286,26 @@ export function Settings() {
         danger={true}
         onConfirm={handleConfirmReset}
         onCancel={() => setIsResetOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={isImportOpen}
+        title="Replace all data?"
+        description="Importing a backup will permanently replace all your current expenses, cycles, and settings. Are you sure you want to proceed?"
+        confirmText="Yes, choose file"
+        cancelText="Cancel"
+        danger={true}
+        onConfirm={() => {
+          document.getElementById('import-file-input').click()
+        }}
+        onCancel={() => setIsImportOpen(false)}
+      />
+      <input 
+        type="file" 
+        id="import-file-input" 
+        accept=".json" 
+        className="hidden" 
+        onChange={handleImportJson}
       />
     </PageTransition>
   )
