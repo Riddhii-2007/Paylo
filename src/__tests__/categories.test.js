@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { saveCategory, DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
+import { saveCategory, DEFAULT_CATEGORIES, resolveCategory, renameCategory, deleteCategoryAndReassign } from '../lib/categories'
 
 describe('saveCategory', () => {
   it('creates a new category when it does not exist', () => {
