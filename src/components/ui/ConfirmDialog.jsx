@@ -11,7 +11,7 @@ export function ConfirmDialog({ isOpen, title, description, confirmText = 'Confi
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="absolute inset-0 bg-navy/40 dark:bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-navy/60 dark:bg-black/80"
             onClick={onCancel}
           />
           <motion.div 

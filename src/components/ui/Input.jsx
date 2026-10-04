@@ -8,7 +8,7 @@ export function Input({ label, type = 'text', error, className = '', ...props })
           py-2 font-sans text-lg text-navy dark:text-cream focus:outline-none transition-colors w-full`}
         {...props}
       />
-      {error && <span className="text-xs text-terracotta">{error}</span>}
+      {(error && typeof error === 'string') && <span className="text-xs text-terracotta">{error}</span>}
     </div>
   )
 }
