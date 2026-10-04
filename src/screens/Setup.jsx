@@ -11,16 +11,7 @@ import { updateSettings } from '../hooks/useSettings'
 import { useTheme } from '../hooks/useTheme'
 import { getTodayStr } from '../lib/format'
 import { toMinorUnits } from '../lib/format'
-
-const SUPPORTED_CURRENCIES = (() => {
-  try {
-    const codes = Intl.supportedValuesOf('currency')
-    const names = new Intl.DisplayNames(['en'], { type: 'currency' })
-    return codes.map(c => ({ code: c, name: names.of(c) }))
-  } catch (e) {
-    return []
-  }
-})()
+import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
 
 export function Setup({ onComplete }) {
   const [step, setStep] = useState(1)
@@ -29,6 +20,7 @@ export function Setup({ onComplete }) {
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState('₹')
   const [customCurrency, setCustomCurrency] = useState('')
+  const [isCurrencyPickerOpen, setIsCurrencyPickerOpen] = useState(false)
   const [cycleDay, setCycleDay] = useState(22)
   
   // First cycle states
@@ -109,19 +101,12 @@ export function Setup({ onComplete }) {
                       onClick={() => { setCurrency(preset); setCustomCurrency('') }} 
                     />
                   ))}
-                  <div className="w-full mt-2">
-                    <Input 
-                      placeholder="More currencies or custom..." 
-                      list="currency-list"
-                      value={customCurrency}
-                      onChange={e => { setCustomCurrency(e.target.value); setCurrency('') }}
-                    />
-                    <datalist id="currency-list">
-                      {SUPPORTED_CURRENCIES.map(c => (
-                        <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
-                      ))}
-                    </datalist>
-                  </div>
+                  <button
+                    className="w-full mt-2 bg-cream-surface dark:bg-navy-surface border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 text-left text-navy dark:text-cream text-lg"
+                    onClick={() => setIsCurrencyPickerOpen(true)}
+                  >
+                    {customCurrency || currency || 'Select Currency...'}
+                  </button>
                 </div>
               </div>
 
@@ -185,6 +170,20 @@ export function Setup({ onComplete }) {
           )}
         </AnimatePresence>
       </div>
+
+      <CurrencyPickerSheet 
+        isOpen={isCurrencyPickerOpen}
+        onClose={() => setIsCurrencyPickerOpen(false)}
+        onSelect={(val) => {
+          if (CURRENCY_PRESETS.includes(val)) {
+            setCurrency(val)
+            setCustomCurrency('')
+          } else {
+            setCurrency('')
+            setCustomCurrency(val)
+          }
+        }}
+      />
 
       <div className="mt-8 pt-4 flex justify-between items-center">
         {step === 2 ? (

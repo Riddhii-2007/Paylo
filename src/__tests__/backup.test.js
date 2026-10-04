@@ -84,7 +84,7 @@ describe('Backup & Export Safety', () => {
     it('successfully imports valid data in a single transaction', async () => {
       const payload = {
         version: 1,
-        settings: [{ key: 'theme', value: 'dark' }],
+        settings: [{ key: 'theme', value: 'dark' }, { key: 'cycleDay', value: 'last' }],
         expenses: [{ amount: 1000, categoryId: 'food', note: 'lunch', date: '2026-10-04', createdAt: 123 }],
         cycles: [{ startDate: '2026-10-01', income: 50000, extras: [] }]
       }
@@ -97,6 +97,63 @@ describe('Backup & Export Safety', () => {
       const exps = await db.expenses.toArray()
       expect(exps.length).toBe(1)
       expect(exps[0].amount).toBe(1000)
+    })
+
+    it('rejects invalid cycleDay settings', async () => {
+      const payloads = [
+        { version: 1, settings: [{ key: 'cycleDay', value: 32 }] },
+        { version: 1, settings: [{ key: 'cycleDay', value: 0 }] },
+        { version: 1, settings: [{ key: 'cycleDay', value: 'first' }] },
+        { version: 1, settings: [{ key: 'cycleDay', value: 15.5 }] }
+      ]
+      for (const p of payloads) {
+        await expect(importJson(mockFile(JSON.stringify(p)))).rejects.toThrow('Invalid cycleDay setting')
+      }
+    })
+
+    it('accepts valid cycleDay settings (1-31 and last)', async () => {
+      const payloads = [
+        { version: 1, settings: [{ key: 'cycleDay', value: 1 }] },
+        { version: 1, settings: [{ key: 'cycleDay', value: 31 }] },
+        { version: 1, settings: [{ key: 'cycleDay', value: 'last' }] }
+      ]
+      for (const p of payloads) {
+        await importJson(mockFile(JSON.stringify(p)))
+        expect(await db.settings.get('cycleDay')).toBeDefined()
+      }
+    })
+  })
+
+  describe('Round-Trip JSON Export/Import', () => {
+    it('exports and imports identical data successfully', async () => {
+      // Setup initial data
+      await db.settings.put({ key: 'cycleDay', value: 15 })
+      await db.expenses.add({ amount: 500, categoryId: 'test', note: 'test', date: '2026-10-10', createdAt: 100 })
+      await db.cycles.add({ startDate: '2026-10-01', income: 1000, extras: [] })
+
+      // Export
+      const blob = await exportJson()
+      const text = await blob.text()
+
+      // Clear DB
+      await db.settings.clear()
+      await db.expenses.clear()
+      await db.cycles.clear()
+
+      // Import
+      await importJson({ size: text.length, text: async () => text })
+
+      // Verify
+      const s = await db.settings.get('cycleDay')
+      expect(s.value).toBe(15)
+
+      const e = await db.expenses.toArray()
+      expect(e.length).toBe(1)
+      expect(e[0].amount).toBe(500)
+
+      const c = await db.cycles.toArray()
+      expect(c.length).toBe(1)
+      expect(c[0].income).toBe(1000)
     })
   })
 })

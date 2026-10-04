@@ -49,9 +49,15 @@ describe('Format Logic', () => {
       expect(formatMoney(1234, 'JPY')).toBe('¥1,234')
     })
 
-    it('formats custom non-ISO symbols correctly', () => {
+    it('formats custom non-ISO symbols correctly (defaults to 2 decimals)', () => {
       expect(formatMoney(123456, 'Points')).toBe('Points 1,234.56')
       expect(formatMoney(123400, 'Points')).toBe('Points 1,234')
+      expect(toMinorUnits(1234.56, 'Points')).toBe(123456)
+    })
+
+    it('formats extremely large amounts correctly', () => {
+      expect(formatMoney(999999999999, 'USD')).toBe('$9,999,999,999.99')
+      expect(formatMoney(999999999999, 'INR')).toContain('99,99,99,99,999')
     })
   })
 })

@@ -99,6 +99,11 @@ export async function importJson(file) {
   // Validate data strictly before touching DB
   const validSettings = settings.map(s => {
     if (!isSafeString(s.key, 100)) throw new Error('Invalid setting key')
+    if (s.key === 'cycleDay') {
+      if (s.value !== 'last' && (!Number.isInteger(s.value) || s.value < 1 || s.value > 31)) {
+        throw new Error('Invalid cycleDay setting')
+      }
+    }
     return { key: s.key, value: s.value }
   })
   
