@@ -16,7 +16,7 @@ export function BottomSheet({ isOpen, onClose, children }) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-40 flex items-end sm:items-center sm:justify-center">
+        <div className="absolute inset-0 z-40 flex items-end sm:items-center sm:justify-center">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

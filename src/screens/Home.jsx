@@ -360,7 +360,7 @@ export function Home() {
       {/* Floating Add Expense Button Placeholder */}
       <button 
         onClick={() => setIsAddExpenseOpen(true)}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform"
+        className="absolute bottom-24 right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform z-40"
       >
         +
       </button>

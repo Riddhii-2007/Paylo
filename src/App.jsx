@@ -58,8 +58,8 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300">
-      <main className="flex-1 overflow-x-hidden">
+    <div className="mx-auto w-full max-w-[480px] h-screen overflow-hidden relative shadow-2xl flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
         <AnimatePresence mode="wait">
           {activeTab === 'home' && <Home key="home" />}
           {activeTab === 'history' && <PlaceholderPage key="history" title="History (M8)" />}
