@@ -62,6 +62,35 @@ describe('Cycle Logic', () => {
       const cycles = [{ id: 1, startDate: '2026-09-22' }]
       expect(getCycleEndDate(0, cycles, 22)).toBe('2026-10-21')
     })
+    
+    it('start Oct 4 with pay day 22 ends Oct 21', () => {
+      const cycles = [{ id: 1, startDate: '2026-10-04' }]
+      expect(getCycleEndDate(0, cycles, 22)).toBe('2026-10-21')
+    })
+
+    it('start on the 22nd ends next month 21st', () => {
+      const cycles = [{ id: 1, startDate: '2026-10-22' }]
+      expect(getCycleEndDate(0, cycles, 22)).toBe('2026-11-21')
+    })
+
+    it('start after the pay day ends next month', () => {
+      const cycles = [{ id: 1, startDate: '2026-10-25' }]
+      expect(getCycleEndDate(0, cycles, 22)).toBe('2026-11-21')
+    })
+
+    it('pay days 31 and last', () => {
+      const cycles1 = [{ id: 1, startDate: '2026-02-05' }]
+      // 31 in Feb clamps to 28 (or 29). So next 31st is Feb 28. End is Feb 27.
+      expect(getCycleEndDate(0, cycles1, 31)).toBe('2026-02-27')
+      
+      const cycles2 = [{ id: 1, startDate: '2026-04-10' }]
+      // 'last' in April is April 30. End is April 29.
+      expect(getCycleEndDate(0, cycles2, 'last')).toBe('2026-04-29')
+      
+      // Start on 30th of April with 'last' -> ends May 30 (since May last is 31)
+      const cycles3 = [{ id: 1, startDate: '2026-04-30' }]
+      expect(getCycleEndDate(0, cycles3, 'last')).toBe('2026-05-30')
+    })
 
     it('Irregular spacing: handles late pay gracefully', () => {
       const cycles = [
