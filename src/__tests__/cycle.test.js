@@ -160,22 +160,34 @@ describe('Cycle Logic', () => {
     ]
 
     it('Overlap prevention: rejects if new date is before prev cycle start', () => {
-      expect(validateStartDateEdit('2026-09-20', 1, cycles)).toBe(false)
+      expect(validateStartDateEdit('2026-09-20', 1, cycles, 22).valid).toBe(false)
     })
 
     it('Overlap prevention: rejects if new date equals or is after next cycle start', () => {
-      expect(validateStartDateEdit('2026-11-18', 1, cycles)).toBe(false)
-      expect(validateStartDateEdit('2026-11-19', 1, cycles)).toBe(false)
+      expect(validateStartDateEdit('2026-11-18', 1, cycles, 22).valid).toBe(false)
+      expect(validateStartDateEdit('2026-11-19', 1, cycles, 22).valid).toBe(false)
     })
 
     it('Allows valid edits between bounds', () => {
-      expect(validateStartDateEdit('2026-10-15', 1, cycles)).toBe(true)
+      expect(validateStartDateEdit('2026-10-15', 1, cycles, 22).valid).toBe(true)
     })
 
     it('Single cycle edge case: allows any edit if it is the only cycle', () => {
       const singleCycle = [{ id: 1, startDate: '2026-09-22' }]
-      expect(validateStartDateEdit('2025-01-01', 0, singleCycle)).toBe(true)
-      expect(validateStartDateEdit('2027-01-01', 0, singleCycle)).toBe(true)
+      expect(validateStartDateEdit('2025-01-01', 0, singleCycle, 22).valid).toBe(true)
+      expect(validateStartDateEdit('2027-01-01', 0, singleCycle, 22).valid).toBe(true)
+    })
+    
+    it('Identifies extras that would fall outside the cycle', () => {
+      const cyclesWithExtras = [
+        { id: 1, startDate: '2026-09-22', extras: [{ date: '2026-09-25' }, { date: '2026-10-18' }] },
+        { id: 2, startDate: '2026-10-20' }
+      ]
+      // Edit cycle 1 start date to 2026-09-30 -> the 09-25 extra is orphaned
+      const res = validateStartDateEdit('2026-09-30', 0, cyclesWithExtras, 22)
+      expect(res.valid).toBe(true)
+      expect(res.orphanedExtras.length).toBe(1)
+      expect(res.orphanedExtras[0].date).toBe('2026-09-25')
     })
   })
   

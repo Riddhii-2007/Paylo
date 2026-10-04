@@ -111,14 +111,32 @@ export function suggestNextStartDate(cycleDaySetting, todayStr) {
   return `${y}-${m}-${d}`
 }
 
-export function validateStartDateEdit(newDateStr, cycleIndex, cycles) {
+export function validateStartDateEdit(newDateStr, cycleIndex, cycles, cycleDaySetting) {
   const sorted = sortCycles(cycles)
   
   const prev = sorted[cycleIndex - 1]
   const next = sorted[cycleIndex + 1]
   
-  if (prev && newDateStr <= prev.startDate) return false
-  if (next && newDateStr >= next.startDate) return false
+  if (prev && newDateStr <= prev.startDate) return { valid: false, reason: 'overlap_prev' }
+  if (next && newDateStr >= next.startDate) return { valid: false, reason: 'overlap_next' }
   
-  return true
+  // Check for orphaned extras
+  const cycle = sorted[cycleIndex]
+  let orphanedExtras = []
+  if (cycle.extras && cycle.extras.length > 0) {
+    // New boundaries for this cycle
+    const start = newDateStr
+    // The end date is either the day before the next cycle, or the projected end
+    let end = ''
+    if (next) {
+      end = subDays(next.startDate, 1)
+    } else {
+      const nextStart = getNextOccurrenceOfCycleDay(newDateStr, cycleDaySetting)
+      end = subDays(nextStart, 1)
+    }
+    
+    orphanedExtras = cycle.extras.filter(extra => extra.date < start || extra.date > end)
+  }
+  
+  return { valid: true, orphanedExtras }
 }
