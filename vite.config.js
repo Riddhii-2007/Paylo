@@ -6,8 +6,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 function cspPlugin() {
   return {
     name: 'csp-plugin',
-    transformIndexHtml(html, { command }) {
-      const isDev = command === 'serve'
+    transformIndexHtml(html, ctx) {
+      const isDev = !!ctx.server
       const csp = isDev
         ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; manifest-src 'self'; object-src 'none'; base-uri 'self';"
         : "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self';"
@@ -19,6 +19,10 @@ function cspPlugin() {
 
 export default defineConfig({
   base: './', // Use relative paths for GitHub Pages
+  server: {
+    port: 5173,
+    strictPort: true
+  },
   plugins: [
     cspPlugin(),
     react(),

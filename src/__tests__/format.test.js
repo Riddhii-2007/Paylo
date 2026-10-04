@@ -57,7 +57,7 @@ describe('Format Logic', () => {
 
     it('formats extremely large amounts correctly', () => {
       expect(formatMoney(999999999999, 'USD')).toBe('$9,999,999,999.99')
-      expect(formatMoney(999999999999, 'INR')).toContain('99,99,99,99,999')
+      expect(formatMoney(999999999999, 'INR')).toBe('₹9,99,99,99,999.99')
     })
   })
 })

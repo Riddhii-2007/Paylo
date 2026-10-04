@@ -137,7 +137,7 @@ export function suggestNextStartDate(cycleDaySetting, todayStr) {
   return `${ry}-${rm}-${rd}`
 }
 
-export function validateStartDateEdit(newDateStr, cycleIndex, cycles, cycleDaySetting) {
+export function validateStartDateEdit(newDateStr, cycleIndex, cycles, cycleDaySetting, currentCycleExpenses = []) {
   const sorted = sortCycles(cycles)
   
   const prev = sorted[cycleIndex - 1]
@@ -146,23 +146,26 @@ export function validateStartDateEdit(newDateStr, cycleIndex, cycles, cycleDaySe
   if (prev && newDateStr <= prev.startDate) return { valid: false, reason: 'overlap_prev' }
   if (next && newDateStr >= next.startDate) return { valid: false, reason: 'overlap_next' }
   
-  // Check for orphaned extras
   const cycle = sorted[cycleIndex]
   let orphanedExtras = []
+  let orphanedExpenses = []
+  
+  const start = newDateStr
+  let end = ''
+  if (next) {
+    end = subDays(next.startDate, 1)
+  } else {
+    const nextStart = getNextOccurrenceOfCycleDay(newDateStr, cycleDaySetting)
+    end = subDays(nextStart, 1)
+  }
+  
   if (cycle.extras && cycle.extras.length > 0) {
-    // New boundaries for this cycle
-    const start = newDateStr
-    // The end date is either the day before the next cycle, or the projected end
-    let end = ''
-    if (next) {
-      end = subDays(next.startDate, 1)
-    } else {
-      const nextStart = getNextOccurrenceOfCycleDay(newDateStr, cycleDaySetting)
-      end = subDays(nextStart, 1)
-    }
-    
     orphanedExtras = cycle.extras.filter(extra => extra.date < start || extra.date > end)
   }
   
-  return { valid: true, orphanedExtras }
+  if (currentCycleExpenses.length > 0) {
+    orphanedExpenses = currentCycleExpenses.filter(e => e.date < start || e.date > end)
+  }
+  
+  return { valid: true, orphanedExtras, orphanedExpenses }
 }

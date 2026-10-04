@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { importJson, exportCsv } from '../lib/backup'
+import { importJson, exportCsv, exportJson } from '../lib/backup'
 import { db } from '../lib/db'
 import Dexie from 'dexie'
 import 'fake-indexeddb/auto'

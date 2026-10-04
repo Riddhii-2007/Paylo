@@ -5,6 +5,8 @@ import { useSettings } from './hooks/useSettings'
 import { PageTransition } from './components/layout/PageTransition'
 import { BottomNav } from './components/layout/BottomNav'
 import { Setup } from './screens/Setup'
+import { seedDevData } from './lib/seed'
+import { Home } from './screens/Home'
 
 // A simple hash router hook
 function useHashRouter() {
@@ -42,6 +44,10 @@ function App() {
     return <div className="min-h-screen bg-cream dark:bg-navy" />
   }
 
+  if (import.meta.env.DEV) {
+    seedDevData()
+  }
+
   if (!settings.setupComplete) {
     return (
       <div className="min-h-screen bg-cream dark:bg-navy text-navy dark:text-cream">
@@ -54,7 +60,7 @@ function App() {
     <div className="min-h-screen flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300">
       <main className="flex-1 overflow-x-hidden">
         <AnimatePresence mode="wait">
-          {activeTab === 'home' && <PlaceholderPage key="home" title="Home Screen (M5)" />}
+          {activeTab === 'home' && <Home key="home" />}
           {activeTab === 'history' && <PlaceholderPage key="history" title="History (M8)" />}
           {activeTab === 'settings' && <PlaceholderPage key="settings" title="Settings (M7)" />}
         </AnimatePresence>
