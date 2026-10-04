@@ -231,6 +231,26 @@ export function Settings() {
 
       <section className="mb-10 pt-8 border-t border-navy/10 dark:border-gold/10">
         <h2 className="font-serif text-xl text-navy dark:text-cream mb-4">Data & Backup</h2>
+        
+        <div className="mb-4 text-sm text-navy/70 dark:text-silver-muted">
+          <p className="font-medium text-navy dark:text-cream mb-1">Your data lives only on this device.</p>
+          <p>
+            {(() => {
+              const lbSetting = settingsArr.find(s => s.key === 'lastBackup')
+              const lbTime = lbSetting ? lbSetting.value : null
+              if (!lbTime) return "You haven't backed up your data yet. We recommend exporting a backup."
+              const daysAgo = Math.floor((Date.now() - lbTime) / (1000 * 3600 * 24))
+              if (daysAgo === 0) return "Last backup: Today"
+              if (daysAgo === 1) return "Last backup: Yesterday"
+              
+              if (daysAgo >= 14) {
+                return <span className="text-terracotta font-medium">Last backup: {daysAgo} days ago. It's been a while, you should back up soon!</span>
+              }
+              return `Last backup: ${daysAgo} days ago`
+            })()}
+          </p>
+        </div>
+
         <div className="flex flex-col gap-3">
           <Button variant="ghost" className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5" onClick={handleExportJson}>
             Export Backup (JSON)
