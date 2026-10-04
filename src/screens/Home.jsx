@@ -67,7 +67,7 @@ export function Home() {
     return settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {})
   }, [settings])
 
-  const { currency = '₹', cycleDay = 22, name = '', categories = DEFAULT_CATEGORIES } = config
+  const { currency = '₹', cycleDay = 22, name = '', categories = DEFAULT_CATEGORIES, lowBalanceWarning = null } = config
 
   const currentCycle = useMemo(() => {
     if (!allCycles || allCycles.length === 0) return null
@@ -98,7 +98,7 @@ export function Home() {
   const remaining = totalIncome - totalSpent
   const dailyBudget = daysLeft > 0 ? Math.max(0, remaining / daysLeft) : 0
 
-  const isLowBalance = remaining < totalIncome * 0.1 // Less than 10% remaining
+  const isLowBalance = lowBalanceWarning !== null ? remaining < lowBalanceWarning : false
 
   // Category breakdown
   const categoryTotals = useMemo(() => {

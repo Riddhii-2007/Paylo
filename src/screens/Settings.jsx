@@ -27,11 +27,19 @@ export function Settings() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isResetOpen, setIsResetOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
+  const [lowBalanceStr, setLowBalanceStr] = useState('')
   
   useEffect(() => {
     if (settingsArr) {
       const catSetting = settingsArr.find(s => s.key === 'categories')
       setCategories(catSetting?.value || DEFAULT_CATEGORIES)
+      
+      const lbSetting = settingsArr.find(s => s.key === 'lowBalanceWarning')
+      if (lbSetting && lbSetting.value) {
+        setLowBalanceStr((lbSetting.value / 100).toString())
+      } else {
+        setLowBalanceStr('')
+      }
     }
   }, [settingsArr])
 
@@ -68,6 +76,18 @@ export function Settings() {
     } catch (e) {
       alert(e.message)
     }
+  }
+
+  const handleSaveLowBalance = async () => {
+    if (!lowBalanceStr) {
+      await db.settings.put({ key: 'lowBalanceWarning', value: null })
+      return
+    }
+    const val = parseFloat(lowBalanceStr)
+    if (isNaN(val) || val < 0) return
+    // Assuming standard currency conversion (100 minor units). If custom, it might need currency prop. 
+    // We'll just do * 100 here.
+    await db.settings.put({ key: 'lowBalanceWarning', value: Math.round(val * 100) })
   }
 
   const handleDeleteRequest = (cat) => {
@@ -221,6 +241,25 @@ export function Settings() {
           <Button variant="ghost" className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5" onClick={handleExportCsv}>
             Export Expenses (CSV)
           </Button>
+        </div>
+      </section>
+
+      <section className="mb-10 pt-8 border-t border-navy/10 dark:border-gold/10">
+        <h2 className="font-serif text-xl text-navy dark:text-cream mb-4">Preferences</h2>
+        <div className="bg-cream-surface dark:bg-navy-surface p-4 rounded-xl border border-navy/5 dark:border-gold/5 flex flex-col gap-4">
+          <div>
+            <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Low Balance Warning</label>
+            <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">Show a warning on Home when remaining budget falls below this amount.</p>
+            <div className="flex gap-2">
+              <Input 
+                type="number" 
+                placeholder="0" 
+                value={lowBalanceStr} 
+                onChange={e => setLowBalanceStr(e.target.value)}
+              />
+              <Button onClick={handleSaveLowBalance}>Save</Button>
+            </div>
+          </div>
         </div>
       </section>
 
