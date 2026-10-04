@@ -5,13 +5,13 @@ import { Input } from './ui/Input'
 import { Button } from './ui/Button'
 import { Chip } from './ui/Chip'
 import { db } from '../lib/db'
-import { toMinorUnits, getTodayStr } from '../lib/format'
+import { toMinorUnits, toMajorUnits, getTodayStr } from '../lib/format'
 import { DEFAULT_CATEGORIES, saveCategory } from '../lib/categories'
 
-export function AddExpenseSheet({ isOpen, onClose, currency }) {
+export function AddExpenseSheet({ isOpen, onClose, currency, initialExpense = null }) {
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
-  const [date, setDate] = useState(getTodayStr())
+  const [date, setDate] = useState('')
   const [selectedCat, setSelectedCat] = useState('food')
   
   const [customName, setCustomName] = useState('')
@@ -28,13 +28,22 @@ export function AddExpenseSheet({ isOpen, onClose, currency }) {
           setSavedCategories(DEFAULT_CATEGORIES)
         }
       })
-      // Reset form
-      setAmount('')
-      setNote('')
-      setDate(getTodayStr())
-      setSelectedCat('food')
-      setCustomName('')
-      setCustomEmoji('✨')
+      // Reset or populate form
+      if (initialExpense) {
+        setAmount(toMajorUnits(initialExpense.amount, currency).toString())
+        setNote(initialExpense.note || '')
+        setDate(initialExpense.date)
+        setSelectedCat(initialExpense.categoryId)
+        setCustomName('')
+        setCustomEmoji('✨')
+      } else {
+        setAmount('')
+        setNote('')
+        setDate(getTodayStr())
+        setSelectedCat('food')
+        setCustomName('')
+        setCustomEmoji('✨')
+      }
     }
   }, [isOpen])
 
@@ -63,20 +72,29 @@ export function AddExpenseSheet({ isOpen, onClose, currency }) {
       finalCatId = 'other'
     }
 
-    await db.expenses.add({
-      amount: minor,
-      categoryId: finalCatId,
-      note: note.trim(),
-      date,
-      createdAt: Date.now()
-    })
+    if (initialExpense) {
+      await db.expenses.update(initialExpense.id, {
+        amount: minor,
+        categoryId: finalCatId,
+        note: note.trim(),
+        date
+      })
+    } else {
+      await db.expenses.add({
+        amount: minor,
+        categoryId: finalCatId,
+        note: note.trim(),
+        date,
+        createdAt: Date.now()
+      })
+    }
 
     onClose()
   }
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose}>
-      <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Add expense</h3>
+      <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">{initialExpense ? 'Edit expense' : 'Add expense'}</h3>
       
       <div className="flex flex-col gap-6">
         <Input 
