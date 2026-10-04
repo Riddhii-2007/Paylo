@@ -200,4 +200,40 @@ describe('Cycle Logic', () => {
       expect(suggestNextStartDate(22, '2026-10-23')).toBe('2026-11-22')
     })
   })
+  describe('G. Pay day clamping and "last" month options', () => {
+    it('Clamps 31 to 30 in short months (April)', () => {
+      // suggestNextStartDate(31, '2026-04-01') -> April has 30 days
+      expect(suggestNextStartDate(31, '2026-04-01')).toBe('2026-04-30')
+    })
+    
+    it('Clamps 30 to 28 or 29 in February', () => {
+      // 2026 is non-leap (28 days)
+      expect(suggestNextStartDate(30, '2026-02-01')).toBe('2026-02-28')
+      // 2024 is leap (29 days)
+      expect(suggestNextStartDate(30, '2024-02-01')).toBe('2024-02-29')
+    })
+    
+    it('Handles "last" option correctly across various months', () => {
+      expect(suggestNextStartDate('last', '2026-01-01')).toBe('2026-01-31')
+      expect(suggestNextStartDate('last', '2026-02-01')).toBe('2026-02-28')
+      expect(suggestNextStartDate('last', '2024-02-01')).toBe('2024-02-29')
+      expect(suggestNextStartDate('last', '2026-04-01')).toBe('2026-04-30')
+    })
+    
+    it('Projects cycle end date correctly with "last"', () => {
+      const cycles = [{ id: 1, startDate: '2026-01-31' }]
+      // Next cycle starts 'last' of Feb -> 2026-02-28. End date is 2026-02-27.
+      expect(getCycleEndDate(0, cycles, 'last')).toBe('2026-02-27')
+    })
+
+    it('Crosses Dec to Jan correctly with clamping', () => {
+      // Dec 31
+      expect(suggestNextStartDate(31, '2026-12-01')).toBe('2026-12-31')
+      expect(suggestNextStartDate(31, '2027-01-01')).toBe('2027-01-31')
+      
+      const cycles = [{ id: 1, startDate: '2026-12-31' }]
+      // Next start is Jan 31 -> end is Jan 30
+      expect(getCycleEndDate(0, cycles, 31)).toBe('2027-01-30')
+    })
+  })
 })

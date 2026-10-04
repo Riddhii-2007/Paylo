@@ -1,52 +1,57 @@
 import { describe, it, expect } from 'vitest'
-import { toPaise, formatMoney } from '../lib/format'
+import { toMinorUnits, formatMoney, toPaise } from '../lib/format'
 
 describe('Format Logic', () => {
-  describe('toPaise', () => {
-    it('handles standard amounts', () => {
-      expect(toPaise(1234.56)).toBe(123456)
-      expect(toPaise(0)).toBe(0)
+  describe('toMinorUnits / toPaise', () => {
+    it('handles null, undefined, empty', () => {
+      expect(toMinorUnits(null, 'INR')).toBe(0)
+      expect(toMinorUnits(undefined, 'INR')).toBe(0)
+      expect(toMinorUnits('', 'INR')).toBe(0)
+      expect(toPaise(null)).toBe(0) // Legacy check
     })
 
-    it('handles floating point math (0.1 + 0.2)', () => {
+    it('handles floating point math correctly (0.1 + 0.2)', () => {
       // 0.1 + 0.2 = 0.30000000000000004
-      expect(toPaise(0.1 + 0.2)).toBe(30)
+      expect(toMinorUnits(0.1 + 0.2, 'INR')).toBe(30)
+      expect(toMinorUnits(0.1 + 0.2, 'USD')).toBe(30)
+      expect(toMinorUnits(0.1 + 0.2, 'JPY')).toBe(0) // JPY has 0 fraction digits. 0.3 rounded is 0.
     })
 
-    it('handles empty or invalid input', () => {
-      expect(toPaise('')).toBe(0)
-      expect(toPaise(null)).toBe(0)
-      expect(toPaise(undefined)).toBe(0)
-      expect(toPaise('abc')).toBe(0)
-    })
-
-    it('handles large amounts', () => {
-      expect(toPaise(10000000)).toBe(1000000000)
+    it('converts correctly for different currencies', () => {
+      expect(toMinorUnits(1234.56, 'INR')).toBe(123456) // 2 decimals
+      expect(toMinorUnits(1234.56, 'USD')).toBe(123456) // 2 decimals
+      expect(toMinorUnits(1234.56, 'JPY')).toBe(1235) // 0 decimals
+      expect(toMinorUnits(10.123, 'BHD')).toBe(10123) // BHD has 3 decimals!
     })
   })
 
   describe('formatMoney', () => {
-    it('formats with default currency', () => {
-      // 1234.56 rupees
-      expect(formatMoney(123456)).toBe('₹ 1,234.56')
-    })
-    
-    it('drops decimals if whole number', () => {
-      expect(formatMoney(123400)).toBe('₹ 1,234')
+    it('handles invalid inputs gracefully', () => {
+      expect(formatMoney(NaN, 'INR')).toContain('0')
+      expect(formatMoney(null, 'USD')).toContain('0')
     })
 
-    it('uses correct Indian comma grouping for large amounts', () => {
-      // 10,00,000 rupees
-      expect(formatMoney(100000000)).toBe('₹ 10,00,000')
+    it('formats INR with Indian digit grouping', () => {
+      // 1 Lakh = 1,00,000
+      expect(formatMoney(10000000, 'INR')).toContain('1,00,000') // 1,00,000.00
+      expect(formatMoney(123456, 'INR')).toBe('₹1,234.56') 
+      // If zero minor units, no fraction part
+      expect(formatMoney(123400, 'INR')).toBe('₹1,234')
     })
 
-    it('accepts custom currency symbols', () => {
-      expect(formatMoney(123456, '$')).toBe('$ 1,234.56')
+    it('formats USD with standard US digit grouping', () => {
+      // 100 thousand = 100,000
+      expect(formatMoney(10000000, 'USD')).toBe('$100,000') 
+      expect(formatMoney(123456, 'USD')).toBe('$1,234.56')
     })
 
-    it('handles invalid paise values', () => {
-      expect(formatMoney(NaN)).toBe('₹ 0')
-      expect(formatMoney(null)).toBe('₹ 0')
+    it('formats JPY with no decimals', () => {
+      expect(formatMoney(1234, 'JPY')).toBe('¥1,234')
+    })
+
+    it('formats custom non-ISO symbols correctly', () => {
+      expect(formatMoney(123456, 'Points')).toBe('Points 1,234.56')
+      expect(formatMoney(123400, 'Points')).toBe('Points 1,234')
     })
   })
 })

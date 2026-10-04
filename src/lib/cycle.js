@@ -20,17 +20,34 @@ export function findCycleForDate(dateStr, cycles) {
   return found
 }
 
-function getNextOccurrenceOfCycleDay(startDateStr, cycleDay) {
+function getDaysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate()
+}
+
+function resolveCycleDay(year, month, cycleDaySetting) {
+  const daysInMonth = getDaysInMonth(year, month)
+  if (cycleDaySetting === 'last') return daysInMonth
+  const day = Number(cycleDaySetting)
+  return Math.min(day, daysInMonth)
+}
+
+function getNextOccurrenceOfCycleDay(startDateStr, cycleDaySetting) {
   const start = parseLocalDate(startDateStr)
   
-  // The projected next cycle start is simply the cycleDay of the following month.
-  // This gracefully handles early pay (e.g. Oct 20 for Oct 22) and late pay (e.g. Oct 25 for Oct 22).
-  const next = new Date(start.getFullYear(), start.getMonth() + 1, cycleDay)
+  let y = start.getFullYear()
+  let m = start.getMonth() + 1
+  if (m > 11) {
+    m = 0
+    y += 1
+  }
   
-  const y = next.getFullYear()
-  const m = String(next.getMonth() + 1).padStart(2, '0')
-  const d = String(next.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  const d = resolveCycleDay(y, m, cycleDaySetting)
+  const next = new Date(y, m, d)
+  
+  const ry = next.getFullYear()
+  const rm = String(next.getMonth() + 1).padStart(2, '0')
+  const rd = String(next.getDate()).padStart(2, '0')
+  return `${ry}-${rm}-${rd}`
 }
 
 function subDays(dateStr, days) {
@@ -99,16 +116,25 @@ export function getExpensesForCycle(cycle, expenses, allCycles, cycleDaySetting)
 export function suggestNextStartDate(cycleDaySetting, todayStr) {
   const today = parseLocalDate(todayStr)
   
-  // If today is past the cycle day of this month, suggest next month's cycle day
-  let suggested = new Date(today.getFullYear(), today.getMonth(), cycleDaySetting)
+  let y = today.getFullYear()
+  let m = today.getMonth()
+  let d = resolveCycleDay(y, m, cycleDaySetting)
+  let suggested = new Date(y, m, d)
+  
   if (today > suggested) {
-    suggested = new Date(today.getFullYear(), today.getMonth() + 1, cycleDaySetting)
+    m += 1
+    if (m > 11) {
+      m = 0
+      y += 1
+    }
+    d = resolveCycleDay(y, m, cycleDaySetting)
+    suggested = new Date(y, m, d)
   }
   
-  const y = suggested.getFullYear()
-  const m = String(suggested.getMonth() + 1).padStart(2, '0')
-  const d = String(suggested.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  const ry = suggested.getFullYear()
+  const rm = String(suggested.getMonth() + 1).padStart(2, '0')
+  const rd = String(suggested.getDate()).padStart(2, '0')
+  return `${ry}-${rm}-${rd}`
 }
 
 export function validateStartDateEdit(newDateStr, cycleIndex, cycles, cycleDaySetting) {

@@ -1,32 +1,58 @@
-export function toPaise(rupees) {
-  if (rupees === null || rupees === undefined || rupees === '') return 0
-  const num = Number(rupees)
-  if (Number.isNaN(num)) return 0
-  
-  // Use Math.round to avoid floating point issues like 0.1 + 0.2
-  return Math.round(num * 100)
-}
-
-export function toRupees(paise) {
-  return paise / 100
-}
-
-export function formatMoney(paise, currency = '₹') {
-  if (typeof paise !== 'number' || Number.isNaN(paise)) {
-    paise = 0
+export function getCurrencyFractions(currencyCode) {
+  try {
+    const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode })
+    return fmt.resolvedOptions().maximumFractionDigits
+  } catch (e) {
+    return 2 // fallback for custom symbols
   }
-  const rupees = toRupees(paise)
+}
+
+export function toMinorUnits(amountStr, currencyCode = 'INR') {
+  if (amountStr === null || amountStr === undefined || amountStr === '') return 0
+  const num = Number(amountStr)
+  if (Number.isNaN(num)) return 0
+  const decimals = getCurrencyFractions(currencyCode)
+  return Math.round(num * Math.pow(10, decimals))
+}
+
+// Keep toPaise for backwards compatibility during migration/tests if needed
+export const toPaise = (amount) => toMinorUnits(amount, 'INR')
+
+export function toMajorUnits(minorUnits, currencyCode = 'INR') {
+  const decimals = getCurrencyFractions(currencyCode)
+  return minorUnits / Math.pow(10, decimals)
+}
+
+export function formatMoney(minorUnits, currencyCode = 'INR') {
+  if (typeof minorUnits !== 'number' || Number.isNaN(minorUnits)) {
+    minorUnits = 0
+  }
+  const major = toMajorUnits(minorUnits, currencyCode)
   
-  // Use Intl.NumberFormat for proper comma separation (e.g. Indian numbering system)
-  const formatter = new Intl.NumberFormat('en-IN', {
+  let isIso = true
+  try {
+    Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode })
+  } catch (e) {
+    isIso = false
+  }
+
+  if (!isIso) {
+    const formatter = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: major % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    })
+    return `${currencyCode} ${formatter.format(major)}`
+  }
+
+  const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US'
+  const formatter = new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: rupees % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
+    currency: currencyCode,
+    minimumFractionDigits: major % 1 === 0 ? 0 : getCurrencyFractions(currencyCode),
+    maximumFractionDigits: getCurrencyFractions(currencyCode),
   })
   
-  // Replace the default INR symbol with the user's chosen currency
-  return formatter.format(rupees).replace('₹', currency + ' ')
+  return formatter.format(major)
 }
 
 export function parseLocalDate(dateStr) {

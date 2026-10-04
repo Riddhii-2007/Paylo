@@ -10,7 +10,17 @@ import { db, initializeSettings } from '../lib/db'
 import { updateSettings } from '../hooks/useSettings'
 import { useTheme } from '../hooks/useTheme'
 import { getTodayStr } from '../lib/format'
-import { toPaise } from '../lib/format'
+import { toMinorUnits } from '../lib/format'
+
+const SUPPORTED_CURRENCIES = (() => {
+  try {
+    const codes = Intl.supportedValuesOf('currency')
+    const names = new Intl.DisplayNames(['en'], { type: 'currency' })
+    return codes.map(c => ({ code: c, name: names.of(c) }))
+  } catch (e) {
+    return []
+  }
+})()
 
 export function Setup({ onComplete }) {
   const [step, setStep] = useState(1)
@@ -27,12 +37,10 @@ export function Setup({ onComplete }) {
 
   const handleNext = async () => {
     if (step === 1) {
-      // Validate cycleDay
-      const day = parseInt(cycleDay)
-      if (isNaN(day) || day < 1 || day > 28) return
+      if (!isStep1Valid()) return
       setStep(2)
     } else if (step === 2) {
-      const inc = toPaise(income)
+      const inc = toMinorUnits(income, customCurrency || currency)
       if (inc <= 0) return
       
       // Save settings
@@ -40,7 +48,7 @@ export function Setup({ onComplete }) {
       await updateSettings({
         name,
         currency: customCurrency || currency,
-        cycleDay: parseInt(cycleDay),
+        cycleDay: cycleDay === 'last' ? 'last' : parseInt(cycleDay),
         theme,
         setupComplete: true
       })
@@ -57,12 +65,13 @@ export function Setup({ onComplete }) {
   }
 
   const isStep1Valid = () => {
+    if (cycleDay === 'last') return true
     const day = parseInt(cycleDay)
-    return !isNaN(day) && day >= 1 && day <= 28
+    return !isNaN(day) && day >= 1 && day <= 31
   }
 
   const isStep2Valid = () => {
-    return toPaise(income) > 0 && startDate
+    return toMinorUnits(income, customCurrency || currency) > 0 && startDate
   }
 
   return (
@@ -100,26 +109,36 @@ export function Setup({ onComplete }) {
                       onClick={() => { setCurrency(preset); setCustomCurrency('') }} 
                     />
                   ))}
-                  <div className="w-16">
+                  <div className="w-full mt-2">
                     <Input 
-                      placeholder="Other" 
+                      placeholder="More currencies or custom..." 
+                      list="currency-list"
                       value={customCurrency}
                       onChange={e => { setCustomCurrency(e.target.value); setCurrency('') }}
-                      className="text-center"
                     />
+                    <datalist id="currency-list">
+                      {SUPPORTED_CURRENCIES.map(c => (
+                        <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                      ))}
+                    </datalist>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col gap-2">
-                <Input 
-                  label={i18n.setup.cycleDayLabel}
-                  type="number" 
-                  min="1" 
-                  max="28"
+                <label className="text-sm text-navy/70 dark:text-silver-muted mb-1 block">
+                  {i18n.setup.cycleDayLabel}
+                </label>
+                <select
                   value={cycleDay}
                   onChange={e => setCycleDay(e.target.value)}
-                />
+                  className="w-full bg-cream-surface dark:bg-navy-surface border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 font-sans text-lg text-navy dark:text-cream focus:outline-none focus:border-gold"
+                >
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                  <option value="last">Last day of the month</option>
+                </select>
                 <span className="text-xs text-navy/50 dark:text-silver-muted/70">{i18n.setup.cycleDayHelp}</span>
               </div>
 
@@ -130,6 +149,7 @@ export function Setup({ onComplete }) {
                   <Chip label="Light" selected={theme === 'light'} onClick={() => setTheme('light')} />
                   <Chip label="Dark" selected={theme === 'dark'} onClick={() => setTheme('dark')} />
                 </div>
+                <p className="text-xs text-navy/50 dark:text-silver-muted mt-1">System follows your phone's setting.</p>
               </div>
             </motion.div>
           )}
@@ -166,7 +186,7 @@ export function Setup({ onComplete }) {
         </AnimatePresence>
       </div>
 
-      <div className="mt-8 pt-4 border-t border-navy/10 dark:border-gold/20 flex justify-between items-center">
+      <div className="mt-8 pt-4 flex justify-between items-center">
         {step === 2 ? (
           <Button variant="ghost" onClick={() => setStep(1)} className="px-4">Back</Button>
         ) : <div />}

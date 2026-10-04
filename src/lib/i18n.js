@@ -1,7 +1,7 @@
 export const i18n = {
   setup: {
     title: "Welcome",
-    nameLabel: "What should we call you? (Optional)",
+    nameLabel: "What should we call you?",
     namePlaceholder: "Your name",
     currencyLabel: "Currency symbol",
     cycleDayLabel: "What day does your money usually arrive?",
