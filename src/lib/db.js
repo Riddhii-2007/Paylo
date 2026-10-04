@@ -1,5 +1,5 @@
 import Dexie from 'dexie'
-import { DEFAULT_CATEGORIES } from './constants.js'
+import { DEFAULT_CATEGORIES } from './categories.js'
 
 export const db = new Dexie('expense-tracker')
 

@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import 'fake-indexeddb/auto'
+import { db } from '../lib/db'
 import { getExpensesForCycle, validateStartDateEdit, sortCycles } from '../lib/cycle'
 
 describe('M9 Features: Cycles and Variable Income', () => {
@@ -78,5 +80,44 @@ describe('M9 Features: Cycles and Variable Income', () => {
     extras = extras.filter((_, i) => i !== indexToDelete)
     expect(extras).toHaveLength(1)
     expect(extras[0].amount).toBe(500)
+  })
+
+  it('runs through real Dexie functions: add, edit, delete addition', async () => {
+    await db.cycles.clear()
+    
+    // Create cycle
+    const cycleId = await db.cycles.add({
+      startDate: '2026-10-01',
+      income: 5000,
+      extras: []
+    })
+    
+    // Add addition
+    let cycle = await db.cycles.get(cycleId)
+    let extras = [...cycle.extras, { amount: 1000, note: 'Bonus', date: '2026-10-02' }]
+    await db.cycles.update(cycleId, { extras })
+    
+    cycle = await db.cycles.get(cycleId)
+    expect(cycle.extras).toHaveLength(1)
+    expect(cycle.extras[0].amount).toBe(1000)
+    
+    // Edit addition
+    extras = [...cycle.extras]
+    extras[0] = { ...extras[0], amount: 1500 }
+    await db.cycles.update(cycleId, { extras })
+    
+    cycle = await db.cycles.get(cycleId)
+    expect(cycle.extras[0].amount).toBe(1500)
+    
+    // Check totals
+    const totalReceived = cycle.income + cycle.extras.reduce((sum, e) => sum + e.amount, 0)
+    expect(totalReceived).toBe(6500) // 5000 + 1500
+    
+    // Delete addition
+    extras = cycle.extras.filter((_, i) => i !== 0)
+    await db.cycles.update(cycleId, { extras })
+    
+    cycle = await db.cycles.get(cycleId)
+    expect(cycle.extras).toHaveLength(0)
   })
 })
