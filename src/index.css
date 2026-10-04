@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #1B2A41;
+  --color-navy-surface: #243752;
+  --color-cream: #F5EFE0;
+  --color-cream-surface: #FBF7EC;
+  --color-gold: #C9A961;
+  --color-gold-dark: #7A5E1E;
+  --color-silver: #B8BEC9;
+  --color-silver-muted: #8C93A1;
+  --color-terracotta: #C0725A;
+  --color-terracotta-dark: #A85A45;
+  --color-teal: #5B8A8A;
+  --color-sand: #D4B896;
+
+  --font-serif: "Fraunces Variable", Georgia, serif;
+  --font-sans: "DM Sans Variable", system-ui, sans-serif;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    @apply bg-cream dark:bg-navy text-navy dark:text-cream font-sans antialiased;
+  }
+}
