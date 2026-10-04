@@ -1,9 +1,23 @@
-export function Input({ label, type = 'text', error, className = '', ...props }) {
+export function Input({ label, type = 'text', error, onChange, className = '', ...props }) {
+  const isNumber = type === 'number'
+
+  const handleChange = (e) => {
+    if (isNumber) {
+      const val = e.target.value
+      if (val !== '' && !/^\d*\.?\d*$/.test(val)) {
+        return // reject non-numeric/multiple dots
+      }
+    }
+    if (onChange) onChange(e)
+  }
+
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       {label && <label className="text-sm text-navy/70 dark:text-silver-muted">{label}</label>}
       <input
-        type={type}
+        type={isNumber ? 'text' : type}
+        inputMode={isNumber ? 'decimal' : undefined}
+        onChange={handleChange}
         className={`bg-transparent border-b ${error ? 'border-terracotta text-terracotta' : 'border-gold/30 dark:border-gold/30 focus:border-gold dark:focus:border-gold'} 
           py-2 font-sans text-lg text-navy dark:text-cream focus:outline-none transition-colors w-full`}
         {...props}
