@@ -8,7 +8,7 @@ import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { exportJson, importJson, requestPersistentStorage } from '../lib/backup'
+import { exportJson, importJson, exportCsv, requestPersistentStorage } from '../lib/backup'
 import { formatDate } from '../lib/format'
 
 export function Settings() {
@@ -144,6 +144,20 @@ export function Settings() {
     }
   }
 
+  const handleExportCsv = async () => {
+    try {
+      const blob = await exportCsv()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mytracker-expenses-${formatDate(new Date().toISOString())}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
   if (!settingsArr) return null
 
   return (
@@ -203,6 +217,9 @@ export function Settings() {
           </Button>
           <Button variant="ghost" className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5" onClick={() => setIsImportOpen(true)}>
             Import Backup
+          </Button>
+          <Button variant="ghost" className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5" onClick={handleExportCsv}>
+            Export Expenses (CSV)
           </Button>
         </div>
       </section>
