@@ -33,7 +33,7 @@ export function Setup({ onComplete }) {
       setStep(2)
     } else if (step === 2) {
       const inc = toMinorUnits(income, customCurrency || currency)
-      if (inc <= 0) return
+      // Allow inc to be 0 if skipped
       
       // Save settings
       await initializeSettings()
@@ -63,7 +63,7 @@ export function Setup({ onComplete }) {
   }
 
   const isStep2Valid = () => {
-    return toMinorUnits(income, customCurrency || currency) > 0 && startDate
+    return !!startDate
   }
 
   return (
@@ -148,8 +148,8 @@ export function Setup({ onComplete }) {
               className="flex flex-col gap-8"
             >
               <div>
-                <h2 className="font-serif text-2xl text-navy dark:text-cream mb-2">Your first cycle</h2>
-                <p className="text-sm text-navy/70 dark:text-silver-muted">When did your current money arrive, and how much was it?</p>
+                <h2 className="font-serif text-2xl text-navy dark:text-cream mb-2">How much did you receive this time?</h2>
+                <p className="text-sm text-navy/70 dark:text-silver-muted">When did your current money arrive, and how much was it? (You can skip this if you're not ready.)</p>
               </div>
 
               <Input 
@@ -195,7 +195,7 @@ export function Setup({ onComplete }) {
           disabled={step === 1 ? !isStep1Valid() : !isStep2Valid()}
           className="ml-auto w-32"
         >
-          {step === 1 ? 'Next' : i18n.setup.finish}
+          {step === 1 ? 'Next' : (!income ? 'Skip & Finish' : i18n.setup.finish)}
         </Button>
       </div>
     </PageTransition>

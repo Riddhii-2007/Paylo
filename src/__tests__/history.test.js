@@ -81,3 +81,35 @@ describe('History Utils', () => {
     })
   })
 })
+
+import { getExpensesForCycle } from '../lib/cycle'
+
+describe('Editing an expense date shifts its cycle', () => {
+  it('correctly associates the expense with a new cycle based on its date', () => {
+    const sortedCycles = [
+      { id: 'c2', startDate: '2026-10-22', income: 1000 },
+      { id: 'c1', startDate: '2026-09-22', income: 1000 }
+    ]
+    // Expense was initially in cycle c1
+    const expense = { id: 1, amount: 100, categoryId: 'food', date: '2026-10-15', createdAt: 100 }
+    
+    const exps = [expense]
+    
+    // Cycle c1 covers Sept 22 - Oct 21
+    let c1Expenses = getExpensesForCycle(sortedCycles[1], exps, sortedCycles, 22)
+    let c2Expenses = getExpensesForCycle(sortedCycles[0], exps, sortedCycles, 22)
+    
+    expect(c1Expenses).toHaveLength(1)
+    expect(c2Expenses).toHaveLength(0)
+
+    // Edit the date to Oct 25, which belongs to c2 (Oct 22 - Nov 21)
+    const editedExpense = { ...expense, date: '2026-10-25' }
+    const updatedExps = [editedExpense]
+
+    c1Expenses = getExpensesForCycle(sortedCycles[1], updatedExps, sortedCycles, 22)
+    c2Expenses = getExpensesForCycle(sortedCycles[0], updatedExps, sortedCycles, 22)
+    
+    expect(c1Expenses).toHaveLength(0)
+    expect(c2Expenses).toHaveLength(1)
+  })
+})

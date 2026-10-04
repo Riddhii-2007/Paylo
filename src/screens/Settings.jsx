@@ -108,8 +108,8 @@ export function Settings() {
       db.cycles.clear(),
       db.expenses.clear()
     ])
-    localStorage.removeItem('mytracker-theme')
-    localStorage.removeItem('mytracker-last-backup')
+    localStorage.removeItem('theme')
+    localStorage.removeItem('last-backup')
     // The App component will automatically detect no settings and show Setup
   }
 

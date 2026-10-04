@@ -112,13 +112,25 @@ export function Home() {
 
   const greeting = name ? `Good evening, ${name}` : 'Good evening'
 
+  const [isStartCycleOpen, setIsStartCycleOpen] = useState(false)
+  const [newCycleDate, setNewCycleDate] = useState('')
+  const [newCycleIncome, setNewCycleIncome] = useState('')
+
+  const handleStartNewCycleInit = () => {
+    setNewCycleDate(suggestNextStartDate(cycleDay, today))
+    setNewCycleIncome('')
+    setIsStartCycleOpen(true)
+  }
+
   const handleStartNewCycle = async () => {
-    const suggested = suggestNextStartDate(cycleDay, today)
+    const inc = toMinorUnits(newCycleIncome, currency)
+    if (inc <= 0) return
     await db.cycles.add({
-      startDate: suggested,
-      income: currentCycle ? currentCycle.income : 0, // Default to last income
+      startDate: newCycleDate,
+      income: inc,
       extras: []
     })
+    setIsStartCycleOpen(false)
   }
 
   const handleSaveExtra = async () => {
@@ -194,7 +206,7 @@ export function Home() {
         <h1 className="font-serif text-2xl mb-4">{greeting}</h1>
         <div className="bg-cream-surface dark:bg-navy-surface rounded-2xl p-6 text-center border border-navy/5 dark:border-gold/10">
           <p className="mb-4 text-navy/70 dark:text-silver-muted">No active cycle for today.</p>
-          <Button onClick={handleStartNewCycle}>Start new cycle</Button>
+          <Button onClick={handleStartNewCycleInit}>Start new cycle</Button>
         </div>
       </PageTransition>
     )
@@ -216,7 +228,7 @@ export function Home() {
           <div className="bg-cream-surface dark:bg-navy-surface rounded-3xl p-6 mb-8 border border-navy/5 dark:border-gold/10">
             <h2 className="font-serif text-2xl text-navy dark:text-gold mb-2">{i18n.home.cycleEnded}</h2>
             <p className="text-navy/70 dark:text-silver-muted mb-6">It looks like your cycle has ended. Ready for the next one?</p>
-            <Button className="w-full" onClick={handleStartNewCycle}>{i18n.home.startNewCycle}</Button>
+            <Button className="w-full" onClick={handleStartNewCycleInit}>{i18n.home.startNewCycle}</Button>
           </div>
         ) : (
           <div className="mb-8">
@@ -319,6 +331,39 @@ export function Home() {
           />
           
           <Button onClick={submitCycleEdit} className="mt-2">Save changes</Button>
+        </div>
+      </BottomSheet>
+
+      {/* Start Cycle Sheet */}
+      <BottomSheet isOpen={isStartCycleOpen} onClose={() => setIsStartCycleOpen(false)}>
+        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Start new cycle</h3>
+        
+        <div className="flex flex-col gap-6">
+          <Input 
+            label="Start Date" 
+            type="date" 
+            value={newCycleDate}
+            onChange={e => setNewCycleDate(e.target.value)}
+          />
+          <div>
+            <Input 
+              label="Amount Received" 
+              type="number"
+              placeholder="0"
+              value={newCycleIncome}
+              onChange={e => setNewCycleIncome(e.target.value)}
+            />
+            {currentCycle && currentCycle.income > 0 && (
+              <button 
+                onClick={() => setNewCycleIncome((currentCycle.income / 100).toString())}
+                className="text-xs text-navy/60 dark:text-gold/80 mt-2 text-left w-full hover:underline"
+              >
+                Use previous amount: {formatMoney(currentCycle.income, currency)}
+              </button>
+            )}
+          </div>
+          
+          <Button onClick={handleStartNewCycle} disabled={!newCycleDate || !newCycleIncome} className="mt-2">Start Cycle</Button>
         </div>
       </BottomSheet>
 

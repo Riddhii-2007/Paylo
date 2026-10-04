@@ -1,8 +1,9 @@
-import { HomeIcon, HistoryIcon, SettingsIcon } from '../icons'
+import { HomeIcon, HistoryIcon, SettingsIcon, CalendarIcon } from '../icons'
 
 export function BottomNav({ activeTab, onTabChange }) {
   const tabs = [
     { id: 'home', label: 'Home', icon: HomeIcon },
+    { id: 'cycles', label: 'Cycles', icon: CalendarIcon },
     { id: 'history', label: 'History', icon: HistoryIcon },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ]

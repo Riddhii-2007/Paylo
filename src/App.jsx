@@ -7,6 +7,7 @@ import { BottomNav } from './components/layout/BottomNav'
 import { Setup } from './screens/Setup'
 import { seedDevData } from './lib/seed'
 import { Home } from './screens/Home'
+import { Cycles } from './screens/Cycles'
 import { History } from './screens/History'
 import { Settings } from './screens/Settings'
 
@@ -63,6 +64,7 @@ function App() {
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative pb-32">
         <AnimatePresence mode="wait">
           {activeTab === 'home' && <Home key="home" />}
+          {activeTab === 'cycles' && <Cycles key="cycles" />}
           {activeTab === 'history' && <History key="history" />}
           {activeTab === 'settings' && <Settings key="settings" />}
         </AnimatePresence>
