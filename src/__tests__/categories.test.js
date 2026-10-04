@@ -32,3 +32,49 @@ describe('saveCategory', () => {
     expect(resolved.name).toBe('Gaming')
   })
 })
+
+describe('renameCategory', () => {
+  it('renames a category and trims the new name', () => {
+    const cats = [{ id: 'food', name: 'Food', emoji: '🍔' }]
+    const updated = renameCategory('food', '  Groceries ', '🛒', cats)
+    expect(updated[0].name).toBe('Groceries')
+    expect(updated[0].emoji).toBe('🛒')
+  })
+
+  it('rejects duplicate names', () => {
+    const cats = [
+      { id: 'food', name: 'Food', emoji: '🍔' },
+      { id: 'transport', name: 'Transport', emoji: '🚌' }
+    ]
+    expect(() => renameCategory('food', 'transport', '🍔', cats)).toThrow()
+  })
+
+  it('allows renaming to the same name (case change)', () => {
+    const cats = [{ id: 'food', name: 'Food', emoji: '🍔' }]
+    const updated = renameCategory('food', 'FOOD', '🍔', cats)
+    expect(updated[0].name).toBe('FOOD')
+  })
+})
+
+describe('deleteCategoryAndReassign', () => {
+  it('deletes the category and reassigns expenses to target', () => {
+    const cats = [
+      { id: 'food', name: 'Food', emoji: '🍔' },
+      { id: 'other', name: 'Other', emoji: '✨' }
+    ]
+    const exps = [
+      { id: 1, categoryId: 'food', amount: 100 },
+      { id: 2, categoryId: 'food', amount: 200 },
+      { id: 3, categoryId: 'other', amount: 50 }
+    ]
+
+    const result = deleteCategoryAndReassign('food', 'other', cats, exps)
+    expect(result.updatedCategories).toHaveLength(1)
+    expect(result.updatedCategories[0].id).toBe('other')
+
+    expect(result.updatedExpenses).toHaveLength(3)
+    expect(result.updatedExpenses.find(e => e.id === 1).categoryId).toBe('other')
+    expect(result.updatedExpenses.find(e => e.id === 2).categoryId).toBe('other')
+    expect(result.updatedExpenses.find(e => e.id === 3).categoryId).toBe('other')
+  })
+})

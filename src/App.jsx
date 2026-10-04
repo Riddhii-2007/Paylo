@@ -7,6 +7,7 @@ import { BottomNav } from './components/layout/BottomNav'
 import { Setup } from './screens/Setup'
 import { seedDevData } from './lib/seed'
 import { Home } from './screens/Home'
+import { Settings } from './screens/Settings'
 
 // A simple hash router hook
 function useHashRouter() {
@@ -62,7 +63,7 @@ function App() {
         <AnimatePresence mode="wait">
           {activeTab === 'home' && <Home key="home" />}
           {activeTab === 'history' && <PlaceholderPage key="history" title="History (M8)" />}
-          {activeTab === 'settings' && <PlaceholderPage key="settings" title="Settings (M7)" />}
+          {activeTab === 'settings' && <Settings key="settings" />}
         </AnimatePresence>
       </main>
       

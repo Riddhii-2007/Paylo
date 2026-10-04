@@ -28,3 +28,28 @@ export function saveCategory(name, emoji, currentCategories) {
   const newCat = { id: newId, name: trimmed, emoji: emoji || '✨' }
   return { categoryId: newId, updatedCategories: [...currentCategories, newCat] }
 }
+
+export function renameCategory(id, newName, newEmoji, currentCategories) {
+  const trimmed = newName.trim()
+  if (trimmed.length === 0 || trimmed.length > 24) {
+    throw new Error('Name must be 1-24 characters')
+  }
+  const lower = trimmed.toLowerCase()
+  const existing = currentCategories.find(c => c.id !== id && (c.name.toLowerCase() === lower || c.id === lower))
+  
+  if (existing) {
+    throw new Error('Category name already exists')
+  }
+  
+  return currentCategories.map(c => 
+    c.id === id ? { ...c, name: trimmed, emoji: newEmoji || '✨' } : c
+  )
+}
+
+export function deleteCategoryAndReassign(id, targetId, currentCategories, allExpenses) {
+  const updatedCategories = currentCategories.filter(c => c.id !== id)
+  const updatedExpenses = allExpenses.map(e => 
+    e.categoryId === id ? { ...e, categoryId: targetId } : e
+  )
+  return { updatedCategories, updatedExpenses }
+}
