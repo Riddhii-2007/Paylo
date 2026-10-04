@@ -31,3 +31,6 @@ dist-ssr
 
 # Ignore root PNGs
 /*.png
+
+# Env files
+.env.development

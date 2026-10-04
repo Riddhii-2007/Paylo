@@ -25,3 +25,17 @@
     @apply bg-cream dark:bg-navy text-navy dark:text-cream font-sans antialiased;
   }
 }
+
+/* Custom scrollbar for the app column */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-navy/20 dark:bg-gold/30 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-navy/40 dark:bg-gold/50;
+}

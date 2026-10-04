@@ -201,7 +201,7 @@ export function Home() {
   }
 
   return (
-    <PageTransition className="pb-24">
+    <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))]">
       {/* Low Balance Banner */}
       {isLowBalance && remaining > 0 && !ended && (
         <div className="bg-terracotta text-cream px-6 py-2 text-sm font-medium text-center">
@@ -357,10 +357,9 @@ export function Home() {
         currency={currency}
       />
 
-      {/* Floating Add Expense Button Placeholder */}
       <button 
         onClick={() => setIsAddExpenseOpen(true)}
-        className="absolute bottom-24 right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform z-40"
+        className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform z-40"
       >
         +
       </button>

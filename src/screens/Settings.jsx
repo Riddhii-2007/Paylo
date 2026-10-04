@@ -108,13 +108,15 @@ export function Settings() {
       db.cycles.clear(),
       db.expenses.clear()
     ])
+    localStorage.removeItem('mytracker-theme')
+    localStorage.removeItem('mytracker-last-backup')
     // The App component will automatically detect no settings and show Setup
   }
 
   if (!settingsArr) return null
 
   return (
-    <PageTransition className="pb-24 p-6">
+    <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))] p-6">
       <header className="mb-8">
         <h1 className="font-serif text-3xl text-navy dark:text-gold mb-2">Settings</h1>
       </header>

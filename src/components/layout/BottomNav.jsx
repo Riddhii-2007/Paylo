@@ -8,7 +8,7 @@ export function BottomNav({ activeTab, onTabChange }) {
   ]
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 bg-cream/90 dark:bg-navy/90 backdrop-blur-md border-t border-navy/10 dark:border-gold/20 pb-safe z-50">
+    <div className="absolute bottom-0 left-0 right-0 bg-cream/90 dark:bg-navy/90 backdrop-blur-md border-t border-navy/5 dark:border-gold/10 pb-[env(safe-area-inset-bottom)] z-50">
       <div className="max-w-md mx-auto flex justify-around items-center h-16 px-4">
         {tabs.map(tab => {
           const Icon = tab.icon
