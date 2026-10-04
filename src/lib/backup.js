@@ -104,6 +104,14 @@ export async function importJson(file) {
         throw new Error('Invalid cycleDay setting')
       }
     }
+    if (s.key === 'categories') {
+      if (!Array.isArray(s.value)) throw new Error('Invalid categories setting')
+      s.value.forEach(c => {
+        if (!c.id || typeof c.id !== 'string' || c.id.length > 50) throw new Error('Invalid category id')
+        if (!c.name || typeof c.name !== 'string' || c.name.length > 24) throw new Error('Invalid category name')
+        if (!c.emoji || typeof c.emoji !== 'string' || c.emoji.length > 10) throw new Error('Invalid category emoji')
+      })
+    }
     return { key: s.key, value: s.value }
   })
   

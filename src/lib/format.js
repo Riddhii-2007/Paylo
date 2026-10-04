@@ -55,6 +55,36 @@ export function formatMoney(minorUnits, currencyCode = 'INR') {
   return formatter.format(major)
 }
 
+export function formatMoneyNoDecimals(minorUnits, currencyCode = 'INR') {
+  if (typeof minorUnits !== 'number' || Number.isNaN(minorUnits)) {
+    minorUnits = 0
+  }
+  const major = Math.floor(toMajorUnits(minorUnits, currencyCode))
+  
+  let isIso = true
+  try {
+    Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode })
+  } catch (e) {
+    isIso = false
+  }
+
+  if (!isIso) {
+    const formatter = new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: 0,
+    })
+    return `${currencyCode} ${formatter.format(major)}`
+  }
+
+  const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US'
+  const formatter = new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: currencyCode,
+    maximumFractionDigits: 0,
+  })
+  
+  return formatter.format(major)
+}
+
 export function parseLocalDate(dateStr) {
   if (!dateStr) return new Date()
   const [y, m, d] = dateStr.split('-').map(Number)

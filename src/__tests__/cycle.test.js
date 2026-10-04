@@ -126,7 +126,7 @@ describe('Cycle Logic', () => {
       expect(cycleAExpenses.map(e => e.id)).toEqual([2])
       
       const cycleBExpenses = getExpensesForCycle(cycles[1], expenses, cycles, 22)
-      expect(cycleBExpenses.map(e => e.id)).toEqual([3, 4])
+      expect(cycleBExpenses.map(e => e.id)).toEqual([3])
     })
 
     it('Handles expenses outside any cycle (unassigned)', () => {
@@ -136,7 +136,7 @@ describe('Cycle Logic', () => {
       ]
       // Passing undefined for cycle to get unassigned
       const unassigned = getExpensesForCycle(undefined, expenses, cycles, 22)
-      expect(unassigned.map(e => e.id)).toEqual([1])
+      expect(unassigned.map(e => e.id)).toEqual([1, 4])
     })
     
     it('No expenses orphaned (all accounted for)', () => {

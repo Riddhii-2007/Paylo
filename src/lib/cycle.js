@@ -35,14 +35,19 @@ function getNextOccurrenceOfCycleDay(startDateStr, cycleDaySetting) {
   const start = parseLocalDate(startDateStr)
   
   let y = start.getFullYear()
-  let m = start.getMonth() + 1
-  if (m > 11) {
-    m = 0
-    y += 1
-  }
+  let m = start.getMonth()
+  let d = resolveCycleDay(y, m, cycleDaySetting)
+  let next = new Date(y, m, d)
   
-  const d = resolveCycleDay(y, m, cycleDaySetting)
-  const next = new Date(y, m, d)
+  if (next <= start) {
+    m += 1
+    if (m > 11) {
+      m = 0
+      y += 1
+    }
+    d = resolveCycleDay(y, m, cycleDaySetting)
+    next = new Date(y, m, d)
+  }
   
   const ry = next.getFullYear()
   const rm = String(next.getMonth() + 1).padStart(2, '0')
@@ -100,8 +105,10 @@ export function getExpensesForCycle(cycle, expenses, allCycles, cycleDaySetting)
   // If cycle is undefined, return unassigned expenses
   if (!cycle) {
     if (allCycles.length === 0) return expenses
-    const firstCycleStart = sortCycles(allCycles)[0].startDate
-    return expenses.filter(e => e.date < firstCycleStart)
+    const sorted = sortCycles(allCycles)
+    const firstCycleStart = sorted[0].startDate
+    const lastCycleEndDate = getCycleEndDate(sorted.length - 1, sorted, cycleDaySetting)
+    return expenses.filter(e => e.date < firstCycleStart || e.date > lastCycleEndDate)
   }
   
   const sorted = sortCycles(allCycles)

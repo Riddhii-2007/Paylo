@@ -8,11 +8,19 @@ import {
   findCycleForDate, getDaysLeft, isCycleEnded, getExpensesForCycle, 
   suggestNextStartDate, validateStartDateEdit, getCycleEndDate, sortCycles
 } from '../lib/cycle'
-import { getTodayStr, formatMoney, toMinorUnits, parseLocalDate } from '../lib/format'
+import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate } from '../lib/format'
+import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { AddExpenseSheet } from '../components/AddExpenseSheet'
+
+const BAR_COLORS = [
+  'bg-gold/50', 'bg-silver/50', 'bg-teal/50', 'bg-terracotta/50', 'bg-sand/50',
+  'bg-gold/30', 'bg-silver/30', 'bg-teal/30', 'bg-terracotta/30', 'bg-sand/30',
+  'bg-gold/70', 'bg-silver/70', 'bg-teal/70', 'bg-terracotta/70', 'bg-sand/70',
+]
 
 function AnimatedAmount({ amount, currency }) {
   const [displayAmount, setDisplayAmount] = useState(0)
@@ -43,6 +51,8 @@ export function Home() {
 
   const [isEditCycleOpen, setIsEditCycleOpen] = useState(false)
   const [isAddExtraOpen, setIsAddExtraOpen] = useState(false)
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false)
+  const [showAllCategories, setShowAllCategories] = useState(false)
   
   const [editDate, setEditDate] = useState('')
   const [editIncome, setEditIncome] = useState('')
@@ -57,7 +67,7 @@ export function Home() {
     return settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {})
   }, [settings])
 
-  const { currency = '₹', cycleDay = 22, name = '' } = config
+  const { currency = '₹', cycleDay = 22, name = '', categories = DEFAULT_CATEGORIES } = config
 
   const currentCycle = useMemo(() => {
     if (!allCycles || allCycles.length === 0) return null
@@ -211,7 +221,11 @@ export function Home() {
         ) : (
           <div className="mb-8">
             <div className="font-serif text-5xl tracking-tight text-navy dark:text-gold mb-2">
-              <AnimatedAmount amount={remaining} currency={currency} />
+              {totalIncome === 0 ? (
+                <span className="text-3xl text-navy/50 dark:text-gold/50">No amount added yet</span>
+              ) : (
+                <AnimatedAmount amount={remaining} currency={currency} />
+              )}
             </div>
             <p className="text-navy/60 dark:text-silver-muted/70 text-sm flex justify-between items-center">
               <span>{i18n.home.remainingOf(formatMoney(totalIncome, currency))}</span>
@@ -229,7 +243,7 @@ export function Home() {
           <StatBox label={i18n.home.spentToday} value={formatMoney(spentToday, currency)} />
           <StatBox label={i18n.home.daysLeft} value={daysLeft} />
           <StatBox label={i18n.home.totalSpent} value={formatMoney(totalSpent, currency)} />
-          <StatBox label={i18n.home.daily} value={formatMoney(dailyBudget, currency)} />
+          <StatBox label={i18n.home.daily} value={formatMoneyNoDecimals(dailyBudget, currency)} />
         </div>
 
         <div className="flex justify-between items-center mb-4">
@@ -238,7 +252,7 @@ export function Home() {
             onClick={() => setIsAddExtraOpen(true)}
             className="text-sm font-medium text-navy/60 dark:text-gold/80 hover:text-navy dark:hover:text-gold transition-colors"
           >
-            Add extra money
+            Add money received
           </button>
         </div>
 
@@ -248,25 +262,40 @@ export function Home() {
               No expenses yet.
             </p>
           ) : (
-            categoryTotals.map(([cat, amt]) => {
-              const percentage = Math.min(100, Math.max(0, (amt / totalSpent) * 100))
-              return (
-                <div key={cat} className="bg-cream-surface dark:bg-navy-surface rounded-2xl p-4 border border-navy/5 dark:border-gold/5">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="capitalize font-medium text-navy dark:text-cream">{cat}</span>
-                    <span className="text-navy/70 dark:text-silver-muted">{formatMoney(amt, currency)}</span>
+            <>
+              {(showAllCategories ? categoryTotals : categoryTotals.slice(0, 5)).map(([catId, amt], i) => {
+                const percentage = Math.min(100, Math.max(0, (amt / totalSpent) * 100))
+                const catObj = resolveCategory(catId, categories)
+                const barColor = BAR_COLORS[i % BAR_COLORS.length]
+                
+                return (
+                  <div key={catId} className="bg-cream-surface dark:bg-navy-surface rounded-2xl p-4 border border-navy/5 dark:border-gold/5">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="capitalize font-medium text-navy dark:text-cream">
+                        {catObj.emoji} {catObj.name}
+                      </span>
+                      <span className="text-navy/70 dark:text-silver-muted">{formatMoney(amt, currency)}</span>
+                    </div>
+                    <div className="h-2 bg-navy/5 dark:bg-silver/10 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percentage}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        className={`h-full rounded-full ${barColor}`}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 bg-navy/5 dark:bg-silver/10 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${percentage}%` }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
-                      className="h-full bg-navy/40 dark:bg-gold/50 rounded-full"
-                    />
-                  </div>
-                </div>
-              )
-            })
+                )
+              })}
+              {!showAllCategories && categoryTotals.length > 5 && (
+                <button 
+                  onClick={() => setShowAllCategories(true)}
+                  className="w-full text-center py-3 text-sm font-medium text-navy/60 dark:text-gold/80 hover:text-navy dark:hover:text-gold transition-colors"
+                >
+                  Show all
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -293,9 +322,9 @@ export function Home() {
         </div>
       </BottomSheet>
 
-      {/* Add Extra Money Sheet */}
+      {/* Add Money Received Sheet */}
       <BottomSheet isOpen={isAddExtraOpen} onClose={() => setIsAddExtraOpen(false)}>
-        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Add extra money</h3>
+        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Add money received</h3>
         <p className="text-sm text-navy/70 dark:text-silver-muted mb-6">Received a bonus, gift, or side income? Add it to your current cycle's budget.</p>
         
         <div className="flex flex-col gap-6">
@@ -321,8 +350,16 @@ export function Home() {
         onCancel={() => setConfirmEdit(null)}
       />
 
+      {/* Add Expense Sheet */}
+      <AddExpenseSheet 
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+        currency={currency}
+      />
+
       {/* Floating Add Expense Button Placeholder */}
       <button 
+        onClick={() => setIsAddExpenseOpen(true)}
         className="fixed bottom-24 right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform"
       >
         +
