@@ -4,6 +4,21 @@ import { getTodayStr } from './format'
 const BACKUP_VERSION = 1
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
+/**
+ * Returns a human-readable reminder status for the backup UI.
+ * Pure function — no side effects.
+ * @param {number|null} lastBackupTimestamp  ms since epoch, or null
+ * @returns {'never'|'today'|'yesterday'|'overdue'|string}
+ */
+export function getBackupReminderStatus(lastBackupTimestamp) {
+  if (!lastBackupTimestamp) return 'never'
+  const daysAgo = Math.floor((Date.now() - lastBackupTimestamp) / (1000 * 3600 * 24))
+  if (daysAgo === 0) return 'today'
+  if (daysAgo === 1) return 'yesterday'
+  if (daysAgo >= 14) return 'overdue'
+  return `${daysAgo} days ago`
+}
+
 export async function requestPersistentStorage() {
   if (navigator.storage && navigator.storage.persist) {
     const isPersisted = await navigator.storage.persist()
@@ -104,6 +119,13 @@ export async function importJson(file) {
         throw new Error('Invalid cycleDay setting')
       }
     }
+    if (s.key === 'openingSavings') {
+      if (s.value !== null && s.value !== undefined) {
+        if (!Number.isFinite(s.value) || !Number.isInteger(s.value) || s.value < 0) {
+          throw new Error('Invalid openingSavings: must be a non-negative integer (minor units)')
+        }
+      }
+    }
     if (s.key === 'categories') {
       if (!Array.isArray(s.value)) throw new Error('Invalid categories setting')
       s.value.forEach(c => {
@@ -114,6 +136,7 @@ export async function importJson(file) {
     }
     return { key: s.key, value: s.value }
   })
+
   
   const validExpenses = expenses.map(e => {
     if (!isSafeAmount(e.amount)) throw new Error('Invalid expense amount')
