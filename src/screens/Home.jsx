@@ -420,6 +420,7 @@ export function Home() {
       <button 
         onClick={() => setIsAddExpenseOpen(true)}
         className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform z-40"
+        aria-label="Add Expense"
       >
         +
       </button>

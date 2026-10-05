@@ -320,16 +320,18 @@ export function Cycles() {
                                     <span className="font-medium text-teal-dark dark:text-teal">{formatMoney(extra.amount, currency)}</span>
                                     {extra.note && <span className="text-xs text-navy/60 dark:text-silver-muted">{extra.note}</span>}
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="flex -mr-2">
                                     <button 
                                       onClick={() => handleEditAddition(c, idx, extra)}
-                                      className="p-1.5 text-navy/50 hover:text-navy dark:text-silver-muted dark:hover:text-gold"
+                                      className="w-11 h-11 flex items-center justify-center text-navy/50 hover:text-navy dark:text-silver-muted dark:hover:text-gold"
+                                      aria-label="Edit extra money"
                                     >
                                       <EditIcon className="w-4 h-4" />
                                     </button>
                                     <button 
                                       onClick={() => setDeleteAdditionConfirm({ cycle: c, index: idx })}
-                                      className="p-1.5 text-terracotta/70 hover:text-terracotta"
+                                      className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                      aria-label="Delete extra money"
                                     >
                                       <TrashIcon className="w-4 h-4" />
                                     </button>

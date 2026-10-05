@@ -333,9 +333,9 @@ export function Settings() {
                 <span className="font-medium text-navy dark:text-cream">{cat.name}</span>
               </div>
               {cat.id !== 'other' && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleOpenEdit(cat)} className="text-sm text-navy/60 dark:text-silver-muted hover:text-navy dark:hover:text-cream">Edit</button>
-                  <button onClick={() => handleDeleteRequest(cat)} className="text-sm text-terracotta hover:opacity-80">Delete</button>
+                <div className="flex -mr-2">
+                  <button onClick={() => handleOpenEdit(cat)} className="h-11 px-3 text-sm flex items-center justify-center text-navy/60 dark:text-silver-muted hover:text-navy dark:hover:text-cream">Edit</button>
+                  <button onClick={() => handleDeleteRequest(cat)} className="h-11 px-3 text-sm flex items-center justify-center text-terracotta hover:opacity-80">Delete</button>
                 </div>
               )}
             </div>
@@ -348,7 +348,8 @@ export function Settings() {
         <h2 className="font-serif text-xl text-navy dark:text-cream mb-4">Data &amp; Backup</h2>
 
         <div className="mb-4 text-sm text-navy/70 dark:text-silver-muted">
-          <p className="font-medium text-navy dark:text-cream mb-1">Your data lives only on this device.</p>
+          <p className="font-medium text-navy dark:text-cream mb-1">Your data stays strictly on this device.</p>
+          <p className="mb-2">There are no accounts, no cloud backend, and no analytics. To prevent data loss (e.g. if you clear browser data), please export backups regularly.</p>
           <p>
             {(() => {
               const lbSetting = settingsArr.find(s => s.key === 'lastBackup')
