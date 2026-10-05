@@ -15,6 +15,7 @@ import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { AddExpenseSheet } from '../components/AddExpenseSheet'
+import { computeSavings } from '../lib/savings'
 
 const BAR_COLORS = [
   'bg-gold/50', 'bg-silver/50', 'bg-teal/50', 'bg-terracotta/50', 'bg-sand/50',
@@ -26,7 +27,6 @@ function AnimatedAmount({ amount, currency }) {
   const [displayAmount, setDisplayAmount] = useState(0)
 
   useEffect(() => {
-    // Respect prefers-reduced-motion
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (mediaQuery.matches) {
       setDisplayAmount(amount)
@@ -56,7 +56,7 @@ export function Home() {
   
   const [editDate, setEditDate] = useState('')
   const [editIncome, setEditIncome] = useState('')
-  const [confirmEdit, setConfirmEdit] = useState(null) // { date, orphaned: [] }
+  const [confirmEdit, setConfirmEdit] = useState(null)
 
   const [extraAmount, setExtraAmount] = useState('')
 
@@ -67,7 +67,7 @@ export function Home() {
     return settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {})
   }, [settings])
 
-  const { currency = '₹', cycleDay = 22, name = '', categories = DEFAULT_CATEGORIES, lowBalanceWarning = null } = config
+  const { currency = '₹', cycleDay = 22, name = '', categories = DEFAULT_CATEGORIES, lowBalanceWarning = null, openingSavings = 0 } = config
 
   const currentCycle = useMemo(() => {
     if (!allCycles || allCycles.length === 0) return null
@@ -95,10 +95,17 @@ export function Home() {
   const totalSpent = useMemo(() => cycleExpenses.reduce((sum, e) => sum + e.amount, 0), [cycleExpenses])
   const spentToday = useMemo(() => cycleExpenses.filter(e => e.date === today).reduce((sum, e) => sum + e.amount, 0), [cycleExpenses, today])
   
-  const remaining = totalIncome - totalSpent
+  const rawRemaining = totalIncome - totalSpent
+  const remaining = Math.max(0, rawRemaining)
   const dailyBudget = daysLeft > 0 ? Math.max(0, remaining / daysLeft) : 0
 
-  const isLowBalance = lowBalanceWarning !== null ? remaining < lowBalanceWarning : false
+  const isLowBalance = lowBalanceWarning !== null ? rawRemaining < lowBalanceWarning : false
+
+  // ── Savings ───────────────────────────────────────────────────────────────
+  const savings = useMemo(() => {
+    if (!allCycles || !allExpenses) return null
+    return computeSavings(allCycles, allExpenses, openingSavings || 0, cycleDay, today)
+  }, [allCycles, allExpenses, openingSavings, cycleDay, today])
 
   // Category breakdown
   const categoryTotals = useMemo(() => {
@@ -125,11 +132,7 @@ export function Home() {
   const handleStartNewCycle = async () => {
     const inc = toMinorUnits(newCycleIncome, currency)
     if (inc <= 0) return
-    await db.cycles.add({
-      startDate: newCycleDate,
-      income: inc,
-      extras: []
-    })
+    await db.cycles.add({ startDate: newCycleDate, income: inc, extras: [] })
     setIsStartCycleOpen(false)
   }
 
@@ -145,37 +148,27 @@ export function Home() {
   const handleEditCycleInit = () => {
     if (!currentCycle) return
     setEditDate(currentCycle.startDate)
-    setEditIncome(currentCycle.income / 100) // For input display (major units approximation, though better to use major units logic)
+    setEditIncome(currentCycle.income / 100)
     setIsEditCycleOpen(true)
   }
 
   const submitCycleEdit = () => {
     const val = validateStartDateEdit(editDate, cycleIndex, sortedCycles, cycleDay, cycleExpenses)
-    if (!val.valid) {
-      alert("Invalid date: overlaps with another cycle.")
-      return
-    }
+    if (!val.valid) { alert('Invalid date: overlaps with another cycle.'); return }
     
     if ((val.orphanedExtras && val.orphanedExtras.length > 0) || (val.orphanedExpenses && val.orphanedExpenses.length > 0)) {
-      setConfirmEdit({ 
-        date: editDate, 
-        orphaned: val.orphanedExtras || [],
-        orphanedExp: val.orphanedExpenses || []
-      })
+      setConfirmEdit({ date: editDate, orphaned: val.orphanedExtras || [], orphanedExp: val.orphanedExpenses || [] })
     } else {
       finalizeCycleEdit(editDate)
     }
   }
 
   const finalizeCycleEdit = async (date) => {
-    // Actually using a simple input for income means we need to minor-unit it
     const inc = toMinorUnits(editIncome, currency)
     const updates = { startDate: date, income: inc }
-    
     if (confirmEdit && confirmEdit.orphaned) {
       updates.extras = currentCycle.extras.filter(e => !confirmEdit.orphaned.includes(e))
     }
-    
     await db.cycles.update(currentCycle.id, updates)
     setIsEditCycleOpen(false)
     setConfirmEdit(null)
@@ -187,9 +180,7 @@ export function Home() {
     const futureCycle = sortCycles(allCycles).find(c => c.startDate > today)
     if (futureCycle) {
       const d = parseLocalDate(futureCycle.startDate)
-      const options = { month: 'short', day: 'numeric', year: 'numeric' }
-      const formatted = d.toLocaleDateString(undefined, options)
-      
+      const formatted = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
       return (
         <PageTransition className="p-6">
           <h1 className="font-serif text-2xl mb-4">{greeting}</h1>
@@ -200,7 +191,6 @@ export function Home() {
       )
     }
 
-    // Possibly unassigned expenses or cycle not started for today yet
     return (
       <PageTransition className="p-6">
         <h1 className="font-serif text-2xl mb-4">{greeting}</h1>
@@ -215,7 +205,7 @@ export function Home() {
   return (
     <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))]">
       {/* Low Balance Banner */}
-      {isLowBalance && remaining > 0 && !ended && (
+      {isLowBalance && rawRemaining > 0 && !ended && (
         <div className="bg-terracotta text-cream px-6 py-2 text-sm font-medium text-center">
           Running low on funds for this cycle.
         </div>
@@ -232,6 +222,7 @@ export function Home() {
           </div>
         ) : (
           <div className="mb-8">
+            {/* Main balance */}
             <div className="font-serif text-5xl tracking-tight text-navy dark:text-gold mb-2">
               {totalIncome === 0 ? (
                 <span className="text-3xl text-navy/50 dark:text-gold/50">No amount added yet</span>
@@ -239,7 +230,7 @@ export function Home() {
                 <AnimatedAmount amount={remaining} currency={currency} />
               )}
             </div>
-            <p className="text-navy/60 dark:text-silver-muted/70 text-sm flex justify-between items-center">
+            <p className="text-navy/60 dark:text-silver-muted/70 text-sm flex justify-between items-center mb-3">
               <span>{i18n.home.remainingOf(formatMoney(totalIncome, currency))}</span>
               <button 
                 onClick={handleEditCycleInit}
@@ -248,6 +239,45 @@ export function Home() {
                 Edit cycle
               </button>
             </p>
+
+            {/* Using from savings notice */}
+            {savings && savings.currentCycleUsingFromSavings && (
+              <div className="flex items-center gap-2 bg-terracotta/10 border border-terracotta/20 rounded-xl px-3 py-2 mb-3">
+                <span className="text-xs text-terracotta font-medium">
+                  Using {formatMoney(savings.savingsBeingUsed, currency)} from savings this cycle
+                </span>
+              </div>
+            )}
+
+            {/* Savings stat line */}
+            {savings && (
+              <div className="flex items-center justify-between bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-navy/60 dark:text-silver-muted uppercase tracking-wider font-medium">
+                    {savings.isProjection ? 'Projected savings' : 'Total saved'}
+                  </span>
+                  {savings.isProjection && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-gold/15 text-gold-dark dark:text-gold rounded font-medium uppercase tracking-wide">
+                      Projection
+                    </span>
+                  )}
+                </div>
+                {savings.isOverspent && !savings.isProjection ? (
+                  <span className="font-serif text-sm text-terracotta font-medium">
+                    Overspent beyond savings: {formatMoney(savings.overspentAmount, currency)}
+                  </span>
+                ) : (
+                  <span className="font-serif text-lg text-navy dark:text-gold">
+                    {formatMoney(
+                      savings.isProjection
+                        ? Math.max(0, savings.projectedSavings ?? savings.totalSaved)
+                        : savings.totalSaved,
+                      currency
+                    )}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -264,7 +294,7 @@ export function Home() {
             onClick={() => setIsAddExtraOpen(true)}
             className="text-sm font-medium text-navy/60 dark:text-gold/80 hover:text-navy dark:hover:text-gold transition-colors"
           >
-            Add money received
+            Add extra money
           </button>
         </div>
 
@@ -315,21 +345,9 @@ export function Home() {
       {/* Edit Cycle Sheet */}
       <BottomSheet isOpen={isEditCycleOpen} onClose={() => setIsEditCycleOpen(false)}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Edit cycle</h3>
-        
         <div className="flex flex-col gap-6">
-          <Input 
-            label="Start Date" 
-            type="date" 
-            value={editDate}
-            onChange={e => setEditDate(e.target.value)}
-          />
-          <Input 
-            label="Total Amount Received" 
-            type="number"
-            value={editIncome}
-            onChange={e => setEditIncome(e.target.value)}
-          />
-          
+          <Input label="Start Date" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+          <Input label="Total Amount Received" type="number" value={editIncome} onChange={e => setEditIncome(e.target.value)} />
           <Button onClick={submitCycleEdit} className="mt-2">Save changes</Button>
         </div>
       </BottomSheet>
@@ -337,22 +355,10 @@ export function Home() {
       {/* Start Cycle Sheet */}
       <BottomSheet isOpen={isStartCycleOpen} onClose={() => setIsStartCycleOpen(false)}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Start new cycle</h3>
-        
         <div className="flex flex-col gap-6">
-          <Input 
-            label="Start Date" 
-            type="date" 
-            value={newCycleDate}
-            onChange={e => setNewCycleDate(e.target.value)}
-          />
+          <Input label="Start Date" type="date" value={newCycleDate} onChange={e => setNewCycleDate(e.target.value)} />
           <div>
-            <Input 
-              label="Amount Received" 
-              type="number"
-              placeholder="0"
-              value={newCycleIncome}
-              onChange={e => setNewCycleIncome(e.target.value)}
-            />
+            <Input label="Amount Received" type="number" placeholder="0" value={newCycleIncome} onChange={e => setNewCycleIncome(e.target.value)} />
             {currentCycle && currentCycle.income > 0 && (
               <button 
                 onClick={() => setNewCycleIncome((currentCycle.income / 100).toString())}
@@ -362,25 +368,16 @@ export function Home() {
               </button>
             )}
           </div>
-          
           <Button onClick={handleStartNewCycle} disabled={!newCycleDate || !newCycleIncome} className="mt-2">Start Cycle</Button>
         </div>
       </BottomSheet>
 
-      {/* Add Money Received Sheet */}
+      {/* Add Extra Money Sheet (renamed) */}
       <BottomSheet isOpen={isAddExtraOpen} onClose={() => setIsAddExtraOpen(false)}>
-        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Add money received</h3>
+        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Add extra money</h3>
         <p className="text-sm text-navy/70 dark:text-silver-muted mb-6">Received a bonus, gift, or side income? Add it to your current cycle's budget.</p>
-        
         <div className="flex flex-col gap-6">
-          <Input 
-            label="Amount" 
-            type="number"
-            placeholder="0"
-            value={extraAmount}
-            onChange={e => setExtraAmount(e.target.value)}
-          />
-          
+          <Input label="Amount" type="number" placeholder="0" value={extraAmount} onChange={e => setExtraAmount(e.target.value)} />
           <Button onClick={handleSaveExtra} className="mt-2">Add to cycle</Button>
         </div>
       </BottomSheet>
@@ -389,8 +386,8 @@ export function Home() {
       <ConfirmDialog
         isOpen={!!confirmEdit}
         title="Cycle change warning"
-        message={`Changing the start date will cause ${confirmEdit?.orphanedExp?.length || 0} expenses and ${confirmEdit?.orphaned?.length || 0} extra incomes to fall outside this cycle. They will become unassigned or move to a different cycle. Proceed?`}
-        confirmLabel="Yes, change date"
+        description={`Changing the start date will cause ${confirmEdit?.orphanedExp?.length || 0} expenses and ${confirmEdit?.orphaned?.length || 0} extra incomes to fall outside this cycle. They will become unassigned or move to a different cycle. Proceed?`}
+        confirmText="Yes, change date"
         onConfirm={() => finalizeCycleEdit(confirmEdit.date)}
         onCancel={() => setConfirmEdit(null)}
       />

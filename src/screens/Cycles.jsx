@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, AnimatePresence } from 'motion/react'
 import { db } from '../lib/db'
-import { sortCycles, getCycleEndDate, getExpensesForCycle, validateStartDateEdit } from '../lib/cycle'
+import { sortCycles, getCycleEndDate, getExpensesForCycle, validateStartDateEdit, findCycleForDate } from '../lib/cycle'
 import { formatMoney, formatDate, getTodayStr, toMinorUnits, toMajorUnits } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { PageTransition } from '../components/layout/PageTransition'
@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TrashIcon, EditIcon, ChevronRightIcon } from '../components/icons'
+import { computeSavings } from '../lib/savings'
 
 export function Cycles() {
   const allCycles = useLiveQuery(() => db.cycles.toArray())
@@ -24,11 +25,11 @@ export function Cycles() {
   const [editingCycle, setEditingCycle] = useState(null)
   const [editDate, setEditDate] = useState('')
   const [editIncome, setEditIncome] = useState('')
-  const [confirmCycleEdit, setConfirmCycleEdit] = useState(null) // { updates, orphanedExtras, orphanedExp }
+  const [confirmCycleEdit, setConfirmCycleEdit] = useState(null)
 
   // Edit Addition State
   const [isEditAdditionOpen, setIsEditAdditionOpen] = useState(false)
-  const [editingAddition, setEditingAddition] = useState(null) // { cycle, index, amount, note }
+  const [editingAddition, setEditingAddition] = useState(null)
   const [additionAmount, setAdditionAmount] = useState('')
   const [additionNote, setAdditionNote] = useState('')
   const [deleteAdditionConfirm, setDeleteAdditionConfirm] = useState(null)
@@ -39,9 +40,21 @@ export function Cycles() {
     if (!settings) return {}
     return settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {})
   }, [settings])
-  const { currency = '₹', cycleDay = 22, categories = DEFAULT_CATEGORIES } = config
+  const { currency = '₹', cycleDay = 22, categories = DEFAULT_CATEGORIES, openingSavings = 0 } = config
 
   const sortedCycles = useMemo(() => allCycles ? sortCycles(allCycles) : [], [allCycles])
+
+  // ── Savings derived data ───────────────────────────────────────────────────
+  const savings = useMemo(() => {
+    if (!allCycles || !allExpenses) return null
+    return computeSavings(allCycles, allExpenses, openingSavings || 0, cycleDay, today)
+  }, [allCycles, allExpenses, openingSavings, cycleDay, today])
+
+  // Map savings entries by cycle id for O(1) lookup in the render
+  const savingsById = useMemo(() => {
+    if (!savings) return {}
+    return Object.fromEntries(savings.cycleEntries.map(e => [String(e.id), e]))
+  }, [savings])
 
   const cyclesData = useMemo(() => {
     if (!sortedCycles.length || !allExpenses) return []
@@ -56,7 +69,6 @@ export function Cycles() {
       const received = baseIncome + extraTotal
       const remaining = received - spent
 
-      // Category breakdown
       const catTotals = {}
       expenses.forEach(e => {
         const cId = e.categoryId || 'other'
@@ -75,7 +87,8 @@ export function Cycles() {
         received,
         remaining,
         breakdown,
-        extras
+        extras,
+        isCurrentCycle: findCycleForDate(today, sortedCycles)?.id === cycle.id
       }
     })
   }, [sortedCycles, allExpenses, cycleDay, today])
@@ -91,10 +104,7 @@ export function Cycles() {
 
   const submitCycleEdit = () => {
     const val = validateStartDateEdit(editDate, editingCycle.index, sortedCycles, cycleDay, editingCycle.expenses)
-    if (!val.valid) {
-      alert("Invalid date: overlaps with another cycle.")
-      return
-    }
+    if (!val.valid) { alert('Invalid date: overlaps with another cycle.'); return }
     
     const inc = toMinorUnits(editIncome, currency)
     const updates = { startDate: editDate, income: inc }
@@ -149,6 +159,38 @@ export function Cycles() {
       <header className="mb-6">
         <h1 className="font-serif text-3xl text-navy dark:text-gold mb-2">Cycles</h1>
         <p className="text-navy/70 dark:text-silver-muted text-sm">View and manage all your cycles.</p>
+
+        {/* Global savings summary */}
+        {savings && (savings.totalSaved > 0 || savings.isOverspent) && (
+          <div className={`mt-4 rounded-xl px-4 py-3 border ${
+            savings.isOverspent
+              ? 'bg-terracotta/10 border-terracotta/20'
+              : 'bg-cream-surface dark:bg-navy-surface border-navy/5 dark:border-gold/10'
+          }`}>
+            {savings.isOverspent ? (
+              <p className="text-sm text-terracotta font-medium">
+                Overspent beyond savings: {formatMoney(savings.overspentAmount, currency)}
+              </p>
+            ) : (
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-navy/60 dark:text-silver-muted uppercase tracking-wider font-medium">
+                  Total saved
+                </span>
+                <span className="font-serif text-lg text-navy dark:text-gold">
+                  {formatMoney(savings.totalSaved, currency)}
+                </span>
+              </div>
+            )}
+            {savings.isProjection && savings.projectedSavings !== null && (
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-xs text-navy/50 dark:text-silver-muted/70">Projected (incl. current)</span>
+                <span className="text-sm font-medium text-navy/70 dark:text-silver-muted">
+                  {formatMoney(Math.max(0, savings.projectedSavings), currency)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       <div className="flex-1 space-y-4">
@@ -159,6 +201,8 @@ export function Cycles() {
         ) : (
           cyclesData.map(c => {
             const isExpanded = expandedId === c.id
+            const se = savingsById[String(c.id)]
+
             return (
               <div 
                 key={c.id} 
@@ -171,9 +215,9 @@ export function Cycles() {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-medium text-navy dark:text-cream">
-                        {formatDate(c.startDate)} - {formatDate(c.endDate)}
+                        {formatDate(c.startDate)} – {formatDate(c.endDate)}
                       </h3>
-                      {c.index === 0 && (
+                      {c.isCurrentCycle && (
                         <span className="inline-block mt-1 px-2 py-0.5 bg-navy/5 dark:bg-gold/10 text-navy/70 dark:text-gold text-[10px] uppercase tracking-wider font-semibold rounded">
                           Current Cycle
                         </span>
@@ -198,10 +242,35 @@ export function Cycles() {
                     </div>
                     <div className="flex flex-col text-right">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Left</span>
-                      <span className="font-serif text-lg text-navy dark:text-cream">{formatMoney(c.remaining, currency)}</span>
+                      <span className="font-serif text-lg text-navy dark:text-cream">{formatMoney(Math.max(0, c.remaining), currency)}</span>
                     </div>
                   </div>
-                  
+
+                  {/* Per-cycle savings badge */}
+                  {se && !se.skipped && (
+                    <div className={`flex justify-between items-center rounded-lg px-3 py-2 text-xs font-medium ${
+                      se.isCurrentCycle
+                        ? 'bg-gold/10 border border-gold/20 text-navy/70 dark:text-gold/80'
+                        : se.delta >= 0
+                          ? 'bg-teal/10 border border-teal/20 text-teal-dark dark:text-teal'
+                          : 'bg-terracotta/10 border border-terracotta/20 text-terracotta'
+                    }`}>
+                      <span>
+                        {se.isCurrentCycle
+                          ? `Projected: ${se.delta >= 0 ? 'save' : 'overspend'} ${formatMoney(Math.abs(se.delta), currency)}`
+                          : se.delta >= 0
+                            ? `Saved ${formatMoney(se.delta, currency)}`
+                            : `Overspent ${formatMoney(Math.abs(se.delta), currency)} (taken from savings)`
+                        }
+                      </span>
+                      {!se.isCurrentCycle && (
+                        <span className="text-navy/50 dark:text-silver-muted/60 font-normal">
+                          Running: {formatMoney(Math.max(0, se.runningTotal), currency)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex justify-center mt-2 -mb-2 text-navy/30 dark:text-gold/30">
                     <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
                       <ChevronRightIcon className="w-5 h-5" />
@@ -218,7 +287,6 @@ export function Cycles() {
                       className="overflow-hidden border-t border-navy/5 dark:border-gold/5"
                     >
                       <div className="p-5 space-y-6">
-                        
                         {/* Breakdowns */}
                         <div>
                           <h4 className="text-xs uppercase tracking-wider font-bold text-navy/50 dark:text-silver-muted mb-3">Expenses by Category</h4>
@@ -241,10 +309,10 @@ export function Cycles() {
                           )}
                         </div>
 
-                        {/* Additions */}
+                        {/* Extra money (renamed from Additional Income) */}
                         {c.extras.length > 0 && (
                           <div>
-                            <h4 className="text-xs uppercase tracking-wider font-bold text-navy/50 dark:text-silver-muted mb-3">Additional Income</h4>
+                            <h4 className="text-xs uppercase tracking-wider font-bold text-navy/50 dark:text-silver-muted mb-3">Extra Money</h4>
                             <div className="space-y-2">
                               {c.extras.map((extra, idx) => (
                                 <div key={idx} className="flex justify-between items-center text-sm p-3 bg-cream dark:bg-navy rounded-xl border border-navy/5 dark:border-gold/5">
@@ -271,7 +339,6 @@ export function Cycles() {
                             </div>
                           </div>
                         )}
-                        
                       </div>
                     </motion.div>
                   )}
@@ -285,21 +352,9 @@ export function Cycles() {
       {/* Edit Cycle Sheet */}
       <BottomSheet isOpen={isEditCycleOpen} onClose={() => setIsEditCycleOpen(false)}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Edit cycle</h3>
-        
         <div className="flex flex-col gap-6">
-          <Input 
-            label="Start Date" 
-            type="date" 
-            value={editDate}
-            onChange={e => setEditDate(e.target.value)}
-          />
-          <Input 
-            label="Base Income" 
-            type="number"
-            value={editIncome}
-            onChange={e => setEditIncome(e.target.value)}
-          />
-          
+          <Input label="Start Date" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+          <Input label="Base Income" type="number" value={editIncome} onChange={e => setEditIncome(e.target.value)} />
           <Button onClick={submitCycleEdit} className="mt-2">Save changes</Button>
         </div>
       </BottomSheet>
@@ -307,40 +362,28 @@ export function Cycles() {
       <ConfirmDialog
         isOpen={!!confirmCycleEdit}
         title="Cycle change warning"
-        message={`Changing the start date will cause ${confirmCycleEdit?.orphanedExp?.length || 0} expenses and ${confirmCycleEdit?.orphanedExtras?.length || 0} extra incomes to fall outside this cycle. They will become unassigned or move to a different cycle. Proceed?`}
-        confirmLabel="Yes, change date"
+        description={`Changing the start date will cause ${confirmCycleEdit?.orphanedExp?.length || 0} expenses and ${confirmCycleEdit?.orphanedExtras?.length || 0} extra incomes to fall outside this cycle. They will become unassigned or move to a different cycle. Proceed?`}
+        confirmText="Yes, change date"
         onConfirm={() => finalizeCycleEdit(confirmCycleEdit.updates, confirmCycleEdit.orphanedExtras)}
         onCancel={() => setConfirmCycleEdit(null)}
       />
 
       {/* Edit Addition Sheet */}
       <BottomSheet isOpen={isEditAdditionOpen} onClose={() => setIsEditAdditionOpen(false)}>
-        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Edit Addition</h3>
-        
+        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Edit Extra Money</h3>
         <div className="flex flex-col gap-6">
-          <Input 
-            label="Amount" 
-            type="number"
-            value={additionAmount}
-            onChange={e => setAdditionAmount(e.target.value)}
-          />
-          <Input 
-            label="Note (Optional)" 
-            value={additionNote}
-            onChange={e => setAdditionNote(e.target.value)}
-            maxLength={100}
-          />
-          
+          <Input label="Amount" type="number" value={additionAmount} onChange={e => setAdditionAmount(e.target.value)} />
+          <Input label="Note (Optional)" value={additionNote} onChange={e => setAdditionNote(e.target.value)} maxLength={100} />
           <Button onClick={saveAddition} className="mt-2">Save changes</Button>
         </div>
       </BottomSheet>
 
       <ConfirmDialog
         isOpen={!!deleteAdditionConfirm}
-        title="Delete Addition"
-        message="Are you sure you want to delete this additional income? This cannot be undone."
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        title="Delete extra money"
+        description="Are you sure you want to delete this extra income? This cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
         danger={true}
         onConfirm={confirmDeleteAddition}
         onCancel={() => setDeleteAdditionConfirm(null)}
