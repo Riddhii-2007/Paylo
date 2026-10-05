@@ -4,8 +4,9 @@ import { BottomSheet } from './layout/BottomSheet'
 import { Input } from './ui/Input'
 import { Button } from './ui/Button'
 import { Chip } from './ui/Chip'
+import { ConfirmDialog } from './ui/ConfirmDialog'
 import { db } from '../lib/db'
-import { toMinorUnits, toMajorUnits, getTodayStr } from '../lib/format'
+import { toMinorUnits, toMajorUnits, getTodayStr, formatMoney } from '../lib/format'
 import { DEFAULT_CATEGORIES, saveCategory } from '../lib/categories'
 
 export function AddExpenseSheet({ isOpen, onClose, currency, initialExpense = null }) {
@@ -18,6 +19,8 @@ export function AddExpenseSheet({ isOpen, onClose, currency, initialExpense = nu
   const [customEmoji, setCustomEmoji] = useState('✨')
 
   const [savedCategories, setSavedCategories] = useState([])
+  const [confirmState, setConfirmState] = useState(null)
+  const [pendingSaveData, setPendingSaveData] = useState(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -50,7 +53,7 @@ export function AddExpenseSheet({ isOpen, onClose, currency, initialExpense = nu
   const categories = savedCategories.length > 0 ? savedCategories : DEFAULT_CATEGORIES
   const showCustom = selectedCat === 'other' || selectedCat === 'new'
 
-  const handleSave = async () => {
+  const handleSave = async (forceSave = false) => {
     const minor = toMinorUnits(amount, currency)
     if (minor <= 0) return
 
@@ -64,31 +67,90 @@ export function AddExpenseSheet({ isOpen, onClose, currency, initialExpense = nu
           await db.settings.put({ key: 'categories', value: result.updatedCategories })
         }
       } catch (e) {
-        // e.g., name too long or empty
         return
       }
     } else if (selectedCat === 'new') {
-      // Picked new but didn't type anything, fallback to other
       finalCatId = 'other'
     }
 
+    const payload = { minor, finalCatId, note: note.trim(), date }
+
+    if (!forceSave) {
+      const allCycles = await db.cycles.toArray()
+      const allExpenses = await db.expenses.toArray()
+      const { sortCycles, findCycleForDate, getExpensesForCycle } = await import('../lib/cycle')
+      const sorted = sortCycles(allCycles)
+      const currentCycle = findCycleForDate(date, sorted)
+
+      if (currentCycle) {
+        const cycleSettings = await db.settings.get('cycleDay')
+        const cycleDay = cycleSettings ? cycleSettings.value : 22
+        const expenses = getExpensesForCycle(currentCycle, allExpenses, sorted, cycleDay)
+        
+        let spent = expenses.reduce((sum, e) => sum + e.amount, 0)
+        if (initialExpense && initialExpense.date >= currentCycle.startDate) {
+           spent -= initialExpense.amount
+        }
+        
+        const base = currentCycle.income || 0
+        const extras = (currentCycle.extras || []).reduce((sum, e) => sum + e.amount, 0)
+        const received = base + extras
+        const remaining = Math.max(0, received - spent)
+        
+        if (minor > remaining) {
+          const { computeSavings } = await import('../lib/savings')
+          const cycleDaySettings = await db.settings.get('cycleDay')
+          const openingSavingsSettings = await db.settings.get('openingSavings')
+          const cycleDay = cycleDaySettings ? cycleDaySettings.value : 22
+          const openingSavings = openingSavingsSettings ? openingSavingsSettings.value : 0
+          
+          const savingsObj = computeSavings(allCycles, allExpenses, openingSavings, cycleDay, getTodayStr())
+          const availableSavings = savingsObj.totalSaved
+          const deficit = minor - remaining
+          
+          let title, description, confirmText, isBlocker
+          
+          if (availableSavings === 0) {
+            title = "Insufficient Funds"
+            description = "You have no remaining balance and no savings available for this expense."
+            confirmText = "Okay"
+            isBlocker = true
+          } else {
+            title = "Use Savings?"
+            description = "Your balance is insufficient. This expense will require using your savings."
+            confirmText = "Use savings"
+            isBlocker = false
+          }
+
+          setPendingSaveData(payload)
+          setConfirmState({ title, description, confirmText, isBlocker })
+          return
+        }
+      }
+    }
+
+    await executeSave(payload)
+  }
+
+  const executeSave = async (data) => {
     if (initialExpense) {
       await db.expenses.update(initialExpense.id, {
-        amount: minor,
-        categoryId: finalCatId,
-        note: note.trim(),
-        date
+        amount: data.minor,
+        categoryId: data.finalCatId,
+        note: data.note,
+        date: data.date
       })
     } else {
       await db.expenses.add({
-        amount: minor,
-        categoryId: finalCatId,
-        note: note.trim(),
-        date,
+        amount: data.minor,
+        categoryId: data.finalCatId,
+        note: data.note,
+        date: data.date,
         createdAt: Date.now()
       })
     }
-
+    setConfirmState(null)
+    setPendingSaveData(null)
     onClose()
   }
 
@@ -174,10 +236,31 @@ export function AddExpenseSheet({ isOpen, onClose, currency, initialExpense = nu
           onChange={e => setDate(e.target.value)}
         />
         
-        <Button onClick={handleSave} className="mt-2" disabled={!amount || toMinorUnits(amount, currency) <= 0}>
+        
+        <Button onClick={() => handleSave(false)} className="mt-2" disabled={!amount || toMinorUnits(amount, currency) <= 0}>
           Save Expense
         </Button>
       </div>
+      
+      <ConfirmDialog
+        isOpen={!!confirmState}
+        title={confirmState?.title || ""}
+        description={confirmState?.description || ""}
+        confirmText={confirmState?.confirmText || ""}
+        cancelText="Cancel"
+        onConfirm={() => {
+          if (confirmState?.isBlocker) {
+            setConfirmState(null)
+            setPendingSaveData(null)
+          } else {
+            executeSave(pendingSaveData)
+          }
+        }}
+        onCancel={() => {
+          setConfirmState(null)
+          setPendingSaveData(null)
+        }}
+      />
     </BottomSheet>
   )
 }

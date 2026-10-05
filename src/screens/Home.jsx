@@ -59,6 +59,8 @@ export function Home() {
   const [confirmEdit, setConfirmEdit] = useState(null)
 
   const [extraAmount, setExtraAmount] = useState('')
+  const [extraDate, setExtraDate] = useState(getTodayStr())
+  const [extraNote, setExtraNote] = useState('')
 
   const today = getTodayStr()
 
@@ -139,10 +141,12 @@ export function Home() {
   const handleSaveExtra = async () => {
     const amount = toMinorUnits(extraAmount, currency)
     if (amount <= 0 || !currentCycle) return
-    const extras = [...(currentCycle.extras || []), { amount, date: today, note: '' }]
+    const extras = [...(currentCycle.extras || []), { amount, date: extraDate, note: extraNote.trim() }]
     await db.cycles.update(currentCycle.id, { extras })
     setIsAddExtraOpen(false)
     setExtraAmount('')
+    setExtraDate(today)
+    setExtraNote('')
   }
 
   const handleEditCycleInit = () => {
@@ -273,7 +277,7 @@ export function Home() {
                       </span>
                     )}
                   </div>
-                  {savings.isOverspent && !savings.isProjection ? (
+                  {savings.isOverspent ? (
                     <span className="font-serif text-sm text-terracotta font-medium">
                       Overspent beyond savings: {formatMoney(savings.overspentAmount, currency)}
                     </span>
@@ -390,6 +394,8 @@ export function Home() {
         <p className="text-sm text-navy/70 dark:text-silver-muted mb-6">Received a bonus, gift, or side income? Add it to your current cycle's budget.</p>
         <div className="flex flex-col gap-6">
           <Input label="Amount" type="number" placeholder="0" value={extraAmount} onChange={e => setExtraAmount(e.target.value)} />
+          <Input label="Date" type="date" value={extraDate} onChange={e => setExtraDate(e.target.value)} />
+          <Input label="Note (Optional)" value={extraNote} onChange={e => setExtraNote(e.target.value)} maxLength={100} />
           <Button onClick={handleSaveExtra} className="mt-2">Add to cycle</Button>
         </div>
       </BottomSheet>
@@ -413,7 +419,7 @@ export function Home() {
 
       <button 
         onClick={() => setIsAddExpenseOpen(true)}
-        className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform z-40"
+        className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-6 w-14 h-14 bg-navy dark:bg-gold text-cream dark:text-navy rounded-full shadow-lg flex items-center justify-center text-3xl font-light hover:scale-105 transition-transform z-40"
       >
         +
       </button>

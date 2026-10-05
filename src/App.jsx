@@ -56,14 +56,14 @@ function App() {
 
   if (!settings.setupComplete) {
     return (
-      <div className="mx-auto w-full max-w-[480px] h-[100vh] h-[100dvh] overflow-y-auto overflow-x-hidden relative border-x border-navy/5 dark:border-gold/10 flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300">
+      <div className="mx-auto w-full max-w-[480px] h-[100vh] h-[100dvh] overflow-y-auto overflow-x-hidden relative border-x border-navy/5 dark:border-gold/10 flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300 transform-gpu">
         <Setup onComplete={() => setActiveTab('home')} />
       </div>
     )
   }
 
   return (
-    <div className="mx-auto w-full max-w-[480px] h-[100vh] h-[100dvh] overflow-hidden relative border-x border-navy/5 dark:border-gold/10 flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300">
+    <div className="mx-auto w-full max-w-[480px] h-[100vh] h-[100dvh] overflow-hidden relative border-x border-navy/5 dark:border-gold/10 flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300 transform-gpu">
       {isLocked && <PinLockScreen onUnlock={unlock} />}
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative pb-32">
         <AnimatePresence mode="wait">

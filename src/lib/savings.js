@@ -128,9 +128,11 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
       })
     } else {
       // Ongoing (current) cycle — projection only
+      const availableSavings = Math.max(0, running)
       currentCycleSurplus = delta
-      currentCycleUsingFromSavings = delta < 0
-      savingsBeingUsed = delta < 0 ? Math.abs(delta) : 0
+      
+      savingsBeingUsed = delta < 0 ? Math.min(Math.abs(delta), availableSavings) : 0
+      currentCycleUsingFromSavings = savingsBeingUsed > 0
 
       projectedSavings = running + delta
       isProjection = true
@@ -149,9 +151,14 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
   }
 
   const totalSavedRaw = running
-  const isOverspent = totalSavedRaw < 0
+  const isOverspentRaw = totalSavedRaw < 0
+  const isOverspentProjected = isProjection && projectedSavings !== null && projectedSavings < 0
+  
+  const isOverspent = isOverspentRaw || isOverspentProjected
   const totalSaved = Math.max(0, totalSavedRaw)
-  const overspentAmount = isOverspent ? Math.abs(totalSavedRaw) : 0
+  const overspentAmount = isOverspentProjected 
+    ? Math.abs(projectedSavings) 
+    : (isOverspentRaw ? Math.abs(totalSavedRaw) : 0)
 
   return {
     openingSavings: opening,

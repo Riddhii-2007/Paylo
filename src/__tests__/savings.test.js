@@ -368,3 +368,54 @@ describe('computeSavings – running totals per cycle entry', () => {
     expect(result.totalSavedRaw).toBe(2500)
   })
 })
+
+// ─── 11. Overspending with available vs zero savings ──────────────────────────
+
+describe('computeSavings – detailed overspending cases', () => {
+  it('A. Balance 0, savings 0, expense 2500 -> no savings used', () => {
+    const cycles = [buildCycle('c1', '2026-10-01', 1000)]
+    const expenses = [
+      buildExpense(1, 1000, '2026-10-02'), // Balance drops to 0
+      buildExpense(2, 2500, '2026-10-05'), // Overspend by 2500
+    ]
+    const today = '2026-10-05'
+
+    const result = computeSavings(cycles, expenses, 0, CYCLE_DAY, today)
+    
+    expect(result.currentCycleUsingFromSavings).toBe(false)
+    expect(result.savingsBeingUsed).toBe(0)
+    expect(result.isOverspent).toBe(true)
+    expect(result.overspentAmount).toBe(2500)
+  })
+
+  it('B. Balance 0, savings 3000, expense 2500 -> uses 2500 savings', () => {
+    const cycles = [buildCycle('c1', '2026-10-01', 1000)]
+    const expenses = [
+      buildExpense(1, 1000, '2026-10-02'),
+      buildExpense(2, 2500, '2026-10-05'),
+    ]
+    const today = '2026-10-05'
+
+    const result = computeSavings(cycles, expenses, 3000, CYCLE_DAY, today) 
+    
+    expect(result.currentCycleUsingFromSavings).toBe(true)
+    expect(result.savingsBeingUsed).toBe(2500)
+    expect(result.isOverspent).toBe(false)
+  })
+
+  it('C. Balance 0, savings 1000, expense 2500 -> uses 1000 savings, overspent 1500', () => {
+    const cycles = [buildCycle('c1', '2026-10-01', 1000)]
+    const expenses = [
+      buildExpense(1, 1000, '2026-10-02'),
+      buildExpense(2, 2500, '2026-10-05'),
+    ]
+    const today = '2026-10-05'
+
+    const result = computeSavings(cycles, expenses, 1000, CYCLE_DAY, today)
+    
+    expect(result.currentCycleUsingFromSavings).toBe(true)
+    expect(result.savingsBeingUsed).toBe(1000)
+    expect(result.isOverspent).toBe(true)
+    expect(result.overspentAmount).toBe(1500)
+  })
+})

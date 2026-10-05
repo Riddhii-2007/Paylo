@@ -174,5 +174,24 @@ export function validateStartDateEdit(newDateStr, cycleIndex, cycles, cycleDaySe
     orphanedExpenses = currentCycleExpenses.filter(e => e.date < start || e.date > end)
   }
   
+  
   return { valid: true, orphanedExtras, orphanedExpenses }
+}
+
+export function willExpenseExceedBalance(minorAmount, expenseDate, allCycles, allExpenses, cycleDaySetting, initialExpenseAmount = 0) {
+  const sorted = sortCycles(allCycles)
+  const currentCycle = findCycleForDate(expenseDate, sorted)
+  if (!currentCycle) return false
+
+  const expenses = getExpensesForCycle(currentCycle, allExpenses, sorted, cycleDaySetting)
+  
+  let spent = expenses.reduce((sum, e) => sum + e.amount, 0)
+  spent -= initialExpenseAmount
+  
+  const base = currentCycle.income || 0
+  const extras = (currentCycle.extras || []).reduce((sum, e) => sum + e.amount, 0)
+  const received = base + extras
+  
+  const remaining = Math.max(0, received - spent)
+  return minorAmount > remaining
 }

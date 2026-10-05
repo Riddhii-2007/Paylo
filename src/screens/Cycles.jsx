@@ -155,7 +155,7 @@ export function Cycles() {
   if (!allCycles || !allExpenses || !settings) return null
 
   return (
-    <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))] p-6 flex flex-col h-full">
+    <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))] p-6 flex flex-col min-h-full">
       <header className="mb-6">
         <h1 className="font-serif text-3xl text-navy dark:text-gold mb-2">Cycles</h1>
         <p className="text-navy/70 dark:text-silver-muted text-sm">View and manage all your cycles.</p>

@@ -117,7 +117,7 @@ export function History() {
   // We'll show All + all available categories.
   
   return (
-    <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))] p-6 flex flex-col h-full">
+    <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))] p-6 flex flex-col min-h-full">
       <header className="mb-6">
         <h1 className="font-serif text-3xl text-navy dark:text-gold mb-4">History</h1>
         
