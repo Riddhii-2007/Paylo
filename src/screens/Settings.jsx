@@ -28,6 +28,7 @@ export function Settings() {
   const [isResetOpen, setIsResetOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [lowBalanceStr, setLowBalanceStr] = useState('')
+  const [pinStr, setPinStr] = useState('')
   
   useEffect(() => {
     if (settingsArr) {
@@ -39,6 +40,13 @@ export function Settings() {
         setLowBalanceStr((lbSetting.value / 100).toString())
       } else {
         setLowBalanceStr('')
+      }
+
+      const pinSett = settingsArr.find(s => s.key === 'pin')
+      if (pinSett && pinSett.value) {
+        setPinStr(pinSett.value)
+      } else {
+        setPinStr('')
       }
     }
   }, [settingsArr])
@@ -88,6 +96,19 @@ export function Settings() {
     // Assuming standard currency conversion (100 minor units). If custom, it might need currency prop. 
     // We'll just do * 100 here.
     await db.settings.put({ key: 'lowBalanceWarning', value: Math.round(val * 100) })
+  }
+
+  const handleSavePin = async () => {
+    if (!pinStr) {
+      await db.settings.put({ key: 'pin', value: null })
+      return
+    }
+    if (pinStr.length !== 4 || !/^\d+$/.test(pinStr)) {
+      alert("PIN must be exactly 4 digits.")
+      return
+    }
+    await db.settings.put({ key: 'pin', value: pinStr })
+    alert("PIN saved! This PIN hides the screen and is NOT encryption.")
   }
 
   const handleDeleteRequest = (cat) => {
@@ -266,7 +287,7 @@ export function Settings() {
 
       <section className="mb-10 pt-8 border-t border-navy/10 dark:border-gold/10">
         <h2 className="font-serif text-xl text-navy dark:text-cream mb-4">Preferences</h2>
-        <div className="bg-cream-surface dark:bg-navy-surface p-4 rounded-xl border border-navy/5 dark:border-gold/5 flex flex-col gap-4">
+        <div className="bg-cream-surface dark:bg-navy-surface p-4 rounded-xl border border-navy/5 dark:border-gold/5 flex flex-col gap-6">
           <div>
             <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Low Balance Warning</label>
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">Show a warning on Home when remaining budget falls below this amount.</p>
@@ -279,6 +300,36 @@ export function Settings() {
               />
               <Button onClick={handleSaveLowBalance}>Save</Button>
             </div>
+          </div>
+
+          <div className="pt-4 border-t border-navy/10 dark:border-gold/10">
+            <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">App PIN Lock</label>
+            <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">
+              Require a 4-digit PIN to open the app. <span className="font-medium text-terracotta">Note: This only hides the screen, it does NOT encrypt your data.</span>
+            </p>
+            <div className="flex gap-2">
+              <Input 
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                placeholder="0000" 
+                value={pinStr} 
+                onChange={e => setPinStr(e.target.value)}
+              />
+              <Button onClick={handleSavePin}>Save</Button>
+            </div>
+            {pinStr && (
+              <button 
+                className="mt-2 text-xs text-terracotta hover:underline"
+                onClick={() => {
+                  setPinStr('')
+                  db.settings.put({ key: 'pin', value: null })
+                }}
+              >
+                Remove PIN
+              </button>
+            )}
           </div>
         </div>
       </section>

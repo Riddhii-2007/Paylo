@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useTheme } from './hooks/useTheme'
 import { useSettings } from './hooks/useSettings'
+import { usePinLock } from './hooks/usePinLock'
 import { PageTransition } from './components/layout/PageTransition'
 import { BottomNav } from './components/layout/BottomNav'
 import { Setup } from './screens/Setup'
@@ -10,6 +11,7 @@ import { Home } from './screens/Home'
 import { Cycles } from './screens/Cycles'
 import { History } from './screens/History'
 import { Settings } from './screens/Settings'
+import { PinLockScreen } from './components/PinLockScreen'
 
 // A simple hash router hook
 function useHashRouter() {
@@ -42,6 +44,7 @@ function App() {
   const [activeTab, setActiveTab] = useHashRouter()
   useTheme()
   const { loading, settings } = useSettings()
+  const { isLocked, unlock } = usePinLock()
 
   if (loading) {
     return <div className="min-h-screen bg-cream dark:bg-navy" />
@@ -61,6 +64,7 @@ function App() {
 
   return (
     <div className="mx-auto w-full max-w-[480px] h-[100vh] h-[100dvh] overflow-hidden relative border-x border-navy/5 dark:border-gold/10 flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300">
+      {isLocked && <PinLockScreen onUnlock={unlock} />}
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative pb-32">
         <AnimatePresence mode="wait">
           {activeTab === 'home' && <Home key="home" />}
