@@ -203,7 +203,7 @@ export function Home() {
   }
 
   return (
-    <PageTransition className="pb-[calc(7rem+env(safe-area-inset-bottom))]">
+    <PageTransition className="pb-[calc(10rem+env(safe-area-inset-bottom))]">
       {/* Low Balance Banner */}
       {isLowBalance && rawRemaining > 0 && !ended && (
         <div className="bg-terracotta text-cream px-6 py-2 text-sm font-medium text-center">
@@ -230,7 +230,7 @@ export function Home() {
                 <AnimatedAmount amount={remaining} currency={currency} />
               )}
             </div>
-            <p className="text-navy/60 dark:text-silver-muted/70 text-sm flex justify-between items-center mb-3">
+            <p className="text-navy/60 dark:text-silver-muted/70 text-sm flex justify-between items-center mb-6">
               <span>{i18n.home.remainingOf(formatMoney(totalIncome, currency))}</span>
               <button 
                 onClick={handleEditCycleInit}
@@ -251,31 +251,43 @@ export function Home() {
 
             {/* Savings stat line */}
             {savings && (
-              <div className="flex items-center justify-between bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-navy/60 dark:text-silver-muted uppercase tracking-wider font-medium">
-                    {savings.isProjection ? 'Projected savings' : 'Total saved'}
-                  </span>
-                  {savings.isProjection && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-gold/15 text-gold-dark dark:text-gold rounded font-medium uppercase tracking-wide">
-                      Projection
+              <div className="flex flex-col gap-2 bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5 rounded-xl px-4 py-3">
+                {savings.isProjection && (
+                  <div className="flex items-center justify-between border-b border-navy/5 dark:border-gold/10 pb-2">
+                    <span className="text-xs text-navy/60 dark:text-silver-muted uppercase tracking-wider font-medium">
+                      Saved so far
+                    </span>
+                    <span className="font-serif text-sm text-navy dark:text-gold">
+                      {formatMoney(savings.totalSaved, currency)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-navy/60 dark:text-silver-muted uppercase tracking-wider font-medium">
+                      {savings.isProjection ? 'Projected savings' : 'Total saved'}
+                    </span>
+                    {savings.isProjection && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-gold/15 text-gold-dark dark:text-gold rounded font-medium uppercase tracking-wide">
+                        Projection
+                      </span>
+                    )}
+                  </div>
+                  {savings.isOverspent && !savings.isProjection ? (
+                    <span className="font-serif text-sm text-terracotta font-medium">
+                      Overspent beyond savings: {formatMoney(savings.overspentAmount, currency)}
+                    </span>
+                  ) : (
+                    <span className="font-serif text-lg text-navy dark:text-gold">
+                      {formatMoney(
+                        savings.isProjection
+                          ? Math.max(0, savings.projectedSavings ?? savings.totalSaved)
+                          : savings.totalSaved,
+                        currency
+                      )}
                     </span>
                   )}
                 </div>
-                {savings.isOverspent && !savings.isProjection ? (
-                  <span className="font-serif text-sm text-terracotta font-medium">
-                    Overspent beyond savings: {formatMoney(savings.overspentAmount, currency)}
-                  </span>
-                ) : (
-                  <span className="font-serif text-lg text-navy dark:text-gold">
-                    {formatMoney(
-                      savings.isProjection
-                        ? Math.max(0, savings.projectedSavings ?? savings.totalSaved)
-                        : savings.totalSaved,
-                      currency
-                    )}
-                  </span>
-                )}
               </div>
             )}
           </div>
