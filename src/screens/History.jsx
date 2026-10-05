@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input'
 import { Chip } from '../components/ui/Chip'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { AddExpenseSheet } from '../components/AddExpenseSheet'
+import { EditIcon, TrashIcon } from '../components/icons'
 
 import { groupExpensesByDate, filterExpenses } from '../lib/history'
 
@@ -206,18 +207,20 @@ export function History() {
                           
                           <div className="flex flex-col items-end shrink-0 gap-1">
                             <span className="font-serif text-lg text-navy dark:text-cream tabular-nums">{formatMoney(item.amount, currency)}</span>
-                            <div className="flex gap-2">
+                            <div className="flex -mr-2">
                               <button 
                                 onClick={() => handleEdit(item)}
-                                className="text-[10px] uppercase font-medium tracking-wider text-navy/50 hover:text-navy dark:text-silver-muted dark:hover:text-gold"
+                                className="w-11 h-11 flex items-center justify-center text-navy/60 hover:text-navy dark:text-silver-muted dark:hover:text-gold"
+                                aria-label="Edit expense"
                               >
-                                Edit
+                                <EditIcon className="w-5 h-5" />
                               </button>
                               <button 
                                 onClick={() => handleDelete(item)}
-                                className="text-[10px] uppercase font-medium tracking-wider text-terracotta/70 hover:text-terracotta"
+                                className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                aria-label="Delete expense"
                               >
-                                Delete
+                                <TrashIcon className="w-5 h-5" />
                               </button>
                             </div>
                           </div>

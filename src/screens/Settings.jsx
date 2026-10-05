@@ -93,13 +93,11 @@ export function Settings() {
   const handleSaveName = async () => {
     await db.settings.put({ key: 'name', value: name.trim() })
   }
-  const handleSaveCurrency = async () => {
-    const val = customCurrency || currency
+  const handleSaveCurrency = async (val) => {
     await db.settings.put({ key: 'currency', value: val })
-    alert('Currency symbol updated. Note: existing amounts are NOT converted.')
   }
-  const handleSaveCycleDay = async () => {
-    const val = cycleDay === 'last' ? 'last' : parseInt(cycleDay)
+  const handleSaveCycleDay = async (newValue) => {
+    const val = newValue === 'last' ? 'last' : parseInt(newValue)
     if (val !== 'last' && (isNaN(val) || val < 1 || val > 31)) {
       alert('Pay day must be 1–31 or "Last day".')
       return
@@ -259,14 +257,12 @@ export function Settings() {
           {/* Name */}
           <div>
             <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Your Name</label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="e.g. Riddhi"
-                value={name}
-                onChange={e => setName(e.target.value)}
-              />
-              <Button onClick={handleSaveName}>Save</Button>
-            </div>
+            <Input
+              placeholder="e.g. Riddhi"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onBlur={handleSaveName}
+            />
           </div>
 
           {/* Currency */}
@@ -275,34 +271,31 @@ export function Settings() {
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">
               Changes the symbol displayed. <span className="font-medium text-terracotta">Existing amounts are NOT converted.</span>
             </p>
-            <div className="flex gap-2 items-end">
-              <button
-                className="flex-1 bg-cream dark:bg-navy border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 text-left text-navy dark:text-cream text-lg"
-                onClick={() => setIsCurrencyPickerOpen(true)}
-              >
-                {displayCurrency}
-              </button>
-              <Button onClick={handleSaveCurrency}>Save</Button>
-            </div>
+            <button
+              className="w-full bg-cream dark:bg-navy border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 text-left text-navy dark:text-cream text-lg"
+              onClick={() => setIsCurrencyPickerOpen(true)}
+            >
+              {displayCurrency}
+            </button>
           </div>
 
           {/* Pay Day */}
           <div className="pt-4 border-t border-navy/10 dark:border-gold/10">
             <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Pay Day</label>
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">The day each new cycle starts.</p>
-            <div className="flex gap-2">
-              <select
-                value={cycleDay}
-                onChange={e => setCycleDay(e.target.value)}
-                className="flex-1 bg-cream dark:bg-navy border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 font-sans text-lg text-navy dark:text-cream focus:outline-none"
-              >
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                  <option key={day} value={day}>{day}</option>
-                ))}
-                <option value="last">Last day of month</option>
-              </select>
-              <Button onClick={handleSaveCycleDay}>Save</Button>
-            </div>
+            <select
+              value={cycleDay}
+              onChange={e => {
+                setCycleDay(e.target.value)
+                handleSaveCycleDay(e.target.value)
+              }}
+              className="w-full bg-cream dark:bg-navy border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 font-sans text-lg text-navy dark:text-cream focus:outline-none"
+            >
+              {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+              <option value="last">Last day of month</option>
+            </select>
           </div>
 
           {/* Theme */}
@@ -436,10 +429,7 @@ export function Settings() {
           <div>
             <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Low Balance Warning</label>
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">Show a warning on Home when remaining budget falls below this amount.</p>
-            <div className="flex gap-2">
-              <Input type="number" placeholder="0" value={lowBalanceStr} onChange={e => setLowBalanceStr(e.target.value)} />
-              <Button onClick={handleSaveLowBalance}>Save</Button>
-            </div>
+            <Input type="number" placeholder="0" value={lowBalanceStr} onChange={e => setLowBalanceStr(e.target.value)} onBlur={handleSaveLowBalance} />
           </div>
 
           {/* Opening Savings */}
@@ -448,10 +438,7 @@ export function Settings() {
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">
               Money you had saved <span className="font-medium">before</span> you started using this app. Added to your savings total from the beginning.
             </p>
-            <div className="flex gap-2">
-              <Input type="number" placeholder="0" value={openingSavingsStr} onChange={e => setOpeningSavingsStr(e.target.value)} />
-              <Button onClick={handleSaveOpeningSavings}>Save</Button>
-            </div>
+            <Input type="number" placeholder="0" value={openingSavingsStr} onChange={e => setOpeningSavingsStr(e.target.value)} onBlur={handleSaveOpeningSavings} />
           </div>
 
 
@@ -633,6 +620,7 @@ export function Settings() {
           } else {
             setCurrency(''); setCustomCurrency(val)
           }
+          handleSaveCurrency(val)
         }}
       />
 

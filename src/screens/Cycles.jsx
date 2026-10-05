@@ -234,11 +234,11 @@ export function Cycles() {
                   <div className="flex justify-between text-sm mt-2">
                     <div className="flex flex-col">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Received</span>
-                      <span className="font-serif text-lg text-teal-dark dark:text-teal">{formatMoney(c.received, currency)}</span>
+                      <span className="font-serif text-lg text-teal-dark dark:text-teal-400">{formatMoney(c.received, currency)}</span>
                     </div>
                     <div className="flex flex-col text-center">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Spent</span>
-                      <span className="font-serif text-lg text-terracotta">{formatMoney(c.spent, currency)}</span>
+                      <span className="font-serif text-lg text-terracotta dark:text-red-400">{formatMoney(c.spent, currency)}</span>
                     </div>
                     <div className="flex flex-col text-right">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Left</span>
@@ -252,8 +252,8 @@ export function Cycles() {
                       se.isCurrentCycle
                         ? 'bg-gold/10 border border-gold/20 text-navy/70 dark:text-gold/80'
                         : se.delta >= 0
-                          ? 'bg-teal/10 border border-teal/20 text-teal-dark dark:text-teal'
-                          : 'bg-terracotta/10 border border-terracotta/20 text-terracotta'
+                          ? 'bg-teal/10 border border-teal/20 text-teal-dark dark:text-teal-400'
+                          : 'bg-terracotta/10 border border-terracotta/20 text-terracotta dark:text-red-400'
                     }`}>
                       <span>
                         {se.isCurrentCycle

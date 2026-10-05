@@ -104,6 +104,23 @@ describe('computeSavings – overspend beyond savings', () => {
     expect(result.isOverspent).toBe(true)
     expect(result.overspentAmount).toBe(3000)
   })
+
+  it('reports overspent correctly when opening savings is 0 and the first cycle is overspent', () => {
+    const cycles = [
+      buildCycle('sep', '2026-09-01', 5000),
+    ]
+    const expenses = [
+      buildExpense(1, 6000, '2026-09-15'), // Sep: overspent by 1000
+    ]
+    const today = '2026-10-05'
+
+    const result = computeSavings(cycles, expenses, 0, CYCLE_DAY, today)
+
+    expect(result.totalSavedRaw).toBe(-1000)
+    expect(result.totalSaved).toBe(0)
+    expect(result.isOverspent).toBe(true)
+    expect(result.overspentAmount).toBe(1000)
+  })
 })
 
 // ─── 4. Extra money in a cycle ────────────────────────────────────────────────
