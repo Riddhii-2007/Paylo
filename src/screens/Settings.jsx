@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'motion/react'
 import { PageTransition } from '../components/layout/PageTransition'
 import { db } from '../lib/db'
 import { DEFAULT_CATEGORIES, saveCategory, renameCategory, deleteCategoryAndReassign } from '../lib/categories'
@@ -8,12 +7,13 @@ import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { exportJson, importJson, exportCsv, exportEncryptedJson, importEncryptedJson, requestPersistentStorage } from '../lib/backup'
+import { exportJson, importJson, exportCsv, exportEncryptedJson, importEncryptedJson, getBackupReminderStatus } from '../lib/backup'
 import { formatDate } from '../lib/format'
 import { CURRENCY_PRESETS } from '../lib/constants'
 import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
 import { useTheme } from '../hooks/useTheme'
 import { Chip } from '../components/ui/Chip'
+import { validatePin, createPinRecord } from '../lib/pinAuth'
 
 export function Settings() {
   const settingsArr = useLiveQuery(() => db.settings.toArray())
@@ -40,6 +40,7 @@ export function Settings() {
 
   // --- preferences ---
   const [lowBalanceStr, setLowBalanceStr] = useState('')
+  const [openingSavingsStr, setOpeningSavingsStr] = useState('')
 
   // --- PIN ---
   const [currentPin, setCurrentPin] = useState('') // what's stored
@@ -82,6 +83,9 @@ export function Settings() {
 
       const cdSett = settingsArr.find(s => s.key === 'cycleDay')
       setCycleDay(cdSett?.value ?? 22)
+
+      const osSett = settingsArr.find(s => s.key === 'openingSavings')
+      setOpeningSavingsStr(osSett?.value ? (osSett.value / 100).toString() : '')
     }
   }, [settingsArr])
 
@@ -154,13 +158,24 @@ export function Settings() {
     await db.settings.put({ key: 'lowBalanceWarning', value: Math.round(val * 100) })
   }
 
-  // ---------- PIN ----------
-  const validatePin = (p) => p.length === 4 && /^\d+$/.test(p)
+  // ---------- Opening Savings ----------
+  const handleSaveOpeningSavings = async () => {
+    if (!openingSavingsStr || openingSavingsStr === '0') {
+      await db.settings.put({ key: 'openingSavings', value: 0 })
+      return
+    }
+    const val = parseFloat(openingSavingsStr)
+    if (isNaN(val) || val < 0) { alert('Opening savings must be a non-negative number.'); return }
+    await db.settings.put({ key: 'openingSavings', value: Math.round(val * 100) })
+  }
 
+  // ---------- PIN ----------
   const handleSavePin = async () => {
     if (!validatePin(newPin)) { alert('PIN must be exactly 4 digits.'); return }
     if (newPin !== confirmPin) { alert('PINs do not match.'); return }
-    await db.settings.put({ key: 'pin', value: newPin })
+    // Store a PBKDF2-hashed record — never the plain PIN
+    const record = await createPinRecord(newPin)
+    await db.settings.put({ key: 'pin', value: record })
     setNewPin(''); setConfirmPin(''); setPinMode('view')
   }
   const handleRemovePin = async () => {
@@ -344,15 +359,12 @@ export function Settings() {
           <p>
             {(() => {
               const lbSetting = settingsArr.find(s => s.key === 'lastBackup')
-              const lbTime = lbSetting ? lbSetting.value : null
-              if (!lbTime) return "You haven't backed up your data yet. We recommend exporting a backup."
-              const daysAgo = Math.floor((Date.now() - lbTime) / (1000 * 3600 * 24))
-              if (daysAgo === 0) return 'Last backup: Today'
-              if (daysAgo === 1) return 'Last backup: Yesterday'
-              if (daysAgo >= 14) {
-                return <span className="text-terracotta font-medium">Last backup: {daysAgo} days ago. It's been a while — back up soon!</span>
-              }
-              return `Last backup: ${daysAgo} days ago`
+              const status = getBackupReminderStatus(lbSetting?.value ?? null)
+              if (status === 'never') return "You haven't backed up your data yet. We recommend exporting a backup."
+              if (status === 'today') return 'Last backup: Today'
+              if (status === 'yesterday') return 'Last backup: Yesterday'
+              if (status === 'overdue') return <span className="text-terracotta font-medium">Last backup: {status}. It's been a while — back up soon!</span>
+              return `Last backup: ${status}`
             })()}
           </p>
         </div>
@@ -430,7 +442,19 @@ export function Settings() {
             </div>
           </div>
 
-          {/* PIN Lock */}
+          {/* Opening Savings */}
+          <div className="pt-4 border-t border-navy/10 dark:border-gold/10">
+            <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Opening Savings</label>
+            <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">
+              Money you had saved <span className="font-medium">before</span> you started using this app. Added to your savings total from the beginning.
+            </p>
+            <div className="flex gap-2">
+              <Input type="number" placeholder="0" value={openingSavingsStr} onChange={e => setOpeningSavingsStr(e.target.value)} />
+              <Button onClick={handleSaveOpeningSavings}>Save</Button>
+            </div>
+          </div>
+
+
           <div className="pt-4 border-t border-navy/10 dark:border-gold/10">
             <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">App PIN Lock</label>
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-3">
