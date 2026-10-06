@@ -59,7 +59,7 @@ describe('Backup & Export Safety', () => {
       ]
       
       for (const p of payloads) {
-        await expect(importJson(mockFile(JSON.stringify(p)))).rejects.toThrow('Invalid expense amount')
+        await expect(importJson(mockFile(JSON.stringify(p)))).rejects.toThrow('expenses[0].amount is invalid')
       }
     })
 
@@ -71,14 +71,14 @@ describe('Backup & Export Safety', () => {
       ]
       
       for (const p of payloads) {
-        await expect(importJson(mockFile(JSON.stringify(p)))).rejects.toThrow('Invalid expense date')
+        await expect(importJson(mockFile(JSON.stringify(p)))).rejects.toThrow('expenses[0].date is not a valid date')
       }
     })
 
     it('rejects massive strings to prevent memory exhaustion', async () => {
       const hugeString = 'a'.repeat(2000)
       const payload = { version: 1, expenses: [{ amount: 10, categoryId: 'a', note: hugeString, date: '2026-10-04' }] }
-      await expect(importJson(mockFile(JSON.stringify(payload)))).rejects.toThrow('Invalid note length')
+      await expect(importJson(mockFile(JSON.stringify(payload)))).rejects.toThrow('expenses[0].note is invalid')
     })
 
     it('successfully imports valid data in a single transaction', async () => {
@@ -107,7 +107,7 @@ describe('Backup & Export Safety', () => {
         { version: 1, settings: [{ key: 'cycleDay', value: 15.5 }] }
       ]
       for (const p of payloads) {
-        await expect(importJson(mockFile(JSON.stringify(p)))).rejects.toThrow('Invalid cycleDay setting')
+        await expect(importJson(mockFile(JSON.stringify(p)))).rejects.toThrow('settings[0] (cycleDay): Invalid cycleDay setting')
       }
     })
 
@@ -154,6 +154,56 @@ describe('Backup & Export Safety', () => {
       const c = await db.cycles.toArray()
       expect(c.length).toBe(1)
       expect(c[0].income).toBe(1000)
+    })
+
+    it('exports and imports identical data successfully including all complex fields', async () => {
+      // Setup initial data with ALL fields
+      await db.settings.put({ key: 'cycleDay', value: 'last' })
+      await db.settings.put({ key: 'openingSavings', value: 1000 })
+      await db.settings.put({ key: 'categories', value: [{ id: 'c1', name: 'Cat1', emoji: '🐱' }] })
+      await db.settings.put({ key: 'pin', value: { hash: 'abc', salt: '123', iterations: 1000 } })
+
+      await db.expenses.add({ amount: 500, categoryId: 'c1', note: 'test', date: '2026-10-10', createdAt: 100 })
+      await db.cycles.add({ startDate: '2026-10-01', income: 1000, extras: [{ amount: 200, date: '2026-10-02', note: 'bonus' }] })
+
+      // Export
+      const blob = await exportJson()
+      const text = await blob.text()
+
+      // Clear DB
+      await db.settings.clear()
+      await db.expenses.clear()
+      await db.cycles.clear()
+
+      // Import
+      await importJson({ size: text.length, text: async () => text })
+
+      // Verify settings
+      const cycleDay = await db.settings.get('cycleDay')
+      expect(cycleDay.value).toBe('last')
+
+      const openingSavings = await db.settings.get('openingSavings')
+      expect(openingSavings.value).toBe(1000)
+
+      const categories = await db.settings.get('categories')
+      expect(categories.value[0].name).toBe('Cat1')
+
+      // PIN should NOT be exported in plain JSON
+      const pin = await db.settings.get('pin')
+      expect(pin).toBeUndefined()
+
+      // Expenses
+      const e = await db.expenses.toArray()
+      expect(e.length).toBe(1)
+      expect(e[0].amount).toBe(500)
+      expect(e[0].note).toBe('test')
+
+      // Cycles
+      const c = await db.cycles.toArray()
+      expect(c.length).toBe(1)
+      expect(c[0].extras.length).toBe(1)
+      expect(c[0].extras[0].amount).toBe(200)
+      expect(c[0].extras[0].note).toBe('bonus')
     })
   })
 })

@@ -50,7 +50,7 @@ export function CurrencyPickerSheet({ isOpen, onClose, onSelect }) {
             filtered.map(c => (
               <button
                 key={c.code}
-                onClick={() => { onSelect(c.code); onClose() }}
+                onClick={() => { onSelect(c.symbol); onClose() }}
                 className="w-full text-left px-4 py-3 border-b border-navy/5 dark:border-gold/10 hover:bg-navy/5 dark:hover:bg-gold/10 transition-colors flex items-center justify-between last:border-b-0"
               >
                 <div>

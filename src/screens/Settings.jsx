@@ -11,6 +11,7 @@ import { exportJson, importJson, exportCsv, exportEncryptedJson, importEncrypted
 import { formatDate } from '../lib/format'
 import { CURRENCY_PRESETS } from '../lib/constants'
 import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
+import { PayDayPickerSheet } from '../components/PayDayPickerSheet'
 import { useTheme } from '../hooks/useTheme'
 import { Chip } from '../components/ui/Chip'
 import { validatePin, createPinRecord } from '../lib/pinAuth'
@@ -37,6 +38,7 @@ export function Settings() {
   const [customCurrency, setCustomCurrency] = useState('')
   const [isCurrencyPickerOpen, setIsCurrencyPickerOpen] = useState(false)
   const [cycleDay, setCycleDay] = useState(22)
+  const [isPayDayPickerOpen, setIsPayDayPickerOpen] = useState(false)
   const [theme, setTheme] = useTheme()
 
   // --- preferences ---
@@ -284,19 +286,12 @@ export function Settings() {
           <div className="pt-4 border-t border-navy/10 dark:border-gold/10">
             <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Pay Day</label>
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">The day each new cycle starts.</p>
-            <select
-              value={cycleDay}
-              onChange={e => {
-                setCycleDay(e.target.value)
-                handleSaveCycleDay(e.target.value)
-              }}
-              className="w-full bg-transparent border-b border-gold/30 dark:border-gold/30 focus:border-gold dark:focus:border-gold py-2 font-sans text-lg text-navy dark:text-cream focus:outline-none transition-colors"
+            <button
+              className="w-full bg-transparent border-b border-gold/30 dark:border-gold/30 focus:border-gold dark:focus:border-gold py-2 text-left font-sans text-lg text-navy dark:text-cream focus:outline-none transition-colors"
+              onClick={() => setIsPayDayPickerOpen(true)}
             >
-              {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                <option key={day} value={day}>{day}</option>
-              ))}
-              <option value="last">Last day of month</option>
-            </select>
+              {cycleDay === 'last' ? 'Last day of the month' : cycleDay}
+            </button>
           </div>
 
           {/* Theme */}
@@ -623,6 +618,17 @@ export function Settings() {
             setCurrency(''); setCustomCurrency(val)
           }
           handleSaveCurrency(val)
+        }}
+      />
+
+      {/* Pay Day picker */}
+      <PayDayPickerSheet
+        isOpen={isPayDayPickerOpen}
+        onClose={() => setIsPayDayPickerOpen(false)}
+        selectedDay={cycleDay}
+        onSelect={(val) => {
+          setCycleDay(val)
+          handleSaveCycleDay(val)
         }}
       />
 

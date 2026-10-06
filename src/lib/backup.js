@@ -63,7 +63,10 @@ export async function exportJson() {
   const backupTime = Date.now()
   await db.settings.put({ key: 'lastBackup', value: backupTime })
   
-  const backupSettings = settings.filter(s => s.key !== 'lastBackup').concat({ key: 'lastBackup', value: backupTime })
+  // Filter out PIN before exporting
+  const backupSettings = settings
+    .filter(s => s.key !== 'lastBackup' && s.key !== 'pin')
+    .concat({ key: 'lastBackup', value: backupTime })
   
   const data = {
     version: BACKUP_VERSION,
@@ -98,11 +101,15 @@ export async function importJson(file) {
   if (file.size > MAX_FILE_SIZE) throw new Error('File too large (max 5MB)')
   
   const text = await file.text()
+  if (!text.trim().startsWith('{')) {
+    throw new Error('Invalid file type: expected a JSON file')
+  }
+
   let data
   try {
     data = JSON.parse(text)
   } catch (e) {
-    throw new Error('Invalid JSON format')
+    throw new Error('Invalid JSON format: file could not be parsed')
   }
   
   if (!data || !data.version) {
@@ -112,57 +119,61 @@ export async function importJson(file) {
   const { settings = [], expenses = [], cycles = [] } = data
   
   // Validate data strictly before touching DB
-  const validSettings = settings.map(s => {
-    if (!isSafeString(s.key, 100)) throw new Error('Invalid setting key')
+  const validSettings = settings.map((s, idx) => {
+    if (!isSafeString(s.key, 100)) throw new Error(`settings[${idx}]: Invalid setting key`)
     if (s.key === 'cycleDay') {
       if (s.value !== 'last' && (!Number.isInteger(s.value) || s.value < 1 || s.value > 31)) {
-        throw new Error('Invalid cycleDay setting')
+        throw new Error(`settings[${idx}] (cycleDay): Invalid cycleDay setting`)
       }
     }
     if (s.key === 'openingSavings') {
       if (s.value !== null && s.value !== undefined) {
         if (!Number.isFinite(s.value) || !Number.isInteger(s.value) || s.value < 0) {
-          throw new Error('Invalid openingSavings: must be a non-negative integer (minor units)')
+          throw new Error(`settings[${idx}] (openingSavings): must be a non-negative integer`)
         }
       }
     }
     if (s.key === 'categories') {
-      if (!Array.isArray(s.value)) throw new Error('Invalid categories setting')
-      s.value.forEach(c => {
-        if (!c.id || typeof c.id !== 'string' || c.id.length > 50) throw new Error('Invalid category id')
-        if (!c.name || typeof c.name !== 'string' || c.name.length > 24) throw new Error('Invalid category name')
-        if (!c.emoji || typeof c.emoji !== 'string' || c.emoji.length > 10) throw new Error('Invalid category emoji')
+      if (!Array.isArray(s.value)) throw new Error(`settings[${idx}] (categories): must be an array`)
+      s.value.forEach((c, cIdx) => {
+        if (!c.id || typeof c.id !== 'string' || c.id.length > 50) throw new Error(`settings[${idx}] (categories)[${cIdx}]: Invalid category id`)
+        if (!c.name || typeof c.name !== 'string' || c.name.length > 24) throw new Error(`settings[${idx}] (categories)[${cIdx}]: Invalid category name`)
+        if (!c.emoji || typeof c.emoji !== 'string' || c.emoji.length > 10) throw new Error(`settings[${idx}] (categories)[${cIdx}]: Invalid category emoji`)
       })
+    }
+    if (s.key === 'pin' && s.value) {
+      if (typeof s.value !== 'object') throw new Error(`settings[${idx}] (pin): Invalid pin setting`)
     }
     return { key: s.key, value: s.value }
   })
 
-  
-  const validExpenses = expenses.map(e => {
-    if (!isSafeAmount(e.amount)) throw new Error('Invalid expense amount')
-    if (!isValidDate(e.date)) throw new Error('Invalid expense date')
-    if (!isSafeString(e.categoryId, 50)) throw new Error('Invalid category ID')
-    if (!isSafeString(e.note, 1000)) throw new Error('Invalid note length')
+  const validExpenses = expenses.map((e, idx) => {
+    if (!isSafeAmount(e.amount)) throw new Error(`expenses[${idx}].amount is invalid`)
+    if (!isValidDate(e.date)) throw new Error(`expenses[${idx}].date is not a valid date`)
+    if (!isSafeString(e.categoryId, 50)) throw new Error(`expenses[${idx}].categoryId is invalid`)
+    const note = e.note || ''
+    if (!isSafeString(note, 1000)) throw new Error(`expenses[${idx}].note is invalid`)
     return {
       amount: e.amount,
       categoryId: e.categoryId,
-      note: e.note,
+      note,
       date: e.date,
       createdAt: Number.isSafeInteger(e.createdAt) ? e.createdAt : Date.now()
     }
   })
   
-  const validCycles = cycles.map(c => {
-    if (!isValidDate(c.startDate)) throw new Error('Invalid cycle start date')
-    if (!isSafeAmount(c.income)) throw new Error('Invalid cycle income')
+  const validCycles = cycles.map((c, idx) => {
+    if (!isValidDate(c.startDate)) throw new Error(`cycles[${idx}].startDate is not a valid date`)
+    if (!isSafeAmount(c.income)) throw new Error(`cycles[${idx}].income is invalid`)
     
     let validExtras = []
     if (Array.isArray(c.extras)) {
-      validExtras = c.extras.map(ex => {
-        if (!isSafeAmount(ex.amount)) throw new Error('Invalid extra amount')
-        if (!isValidDate(ex.date)) throw new Error('Invalid extra date')
-        if (!isSafeString(ex.note, 500)) throw new Error('Invalid extra note')
-        return { amount: ex.amount, date: ex.date, note: ex.note }
+      validExtras = c.extras.map((ex, exIdx) => {
+        if (!isSafeAmount(ex.amount)) throw new Error(`cycles[${idx}].extras[${exIdx}].amount is invalid`)
+        if (!isValidDate(ex.date)) throw new Error(`cycles[${idx}].extras[${exIdx}].date is not a valid date`)
+        const exNote = ex.note || ''
+        if (!isSafeString(exNote, 500)) throw new Error(`cycles[${idx}].extras[${exIdx}].note is invalid`)
+        return { amount: ex.amount, date: ex.date, note: exNote }
       })
     }
     

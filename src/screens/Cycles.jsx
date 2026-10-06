@@ -234,11 +234,11 @@ export function Cycles() {
                   <div className="flex justify-between text-sm mt-2">
                     <div className="flex flex-col">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Received</span>
-                      <span className="font-serif text-lg text-teal-dark dark:text-teal-300">{formatMoney(c.received, currency)}</span>
+                      <span className="font-serif text-lg text-teal-dark dark:text-teal-light">{formatMoney(c.received, currency)}</span>
                     </div>
                     <div className="flex flex-col text-center">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Spent</span>
-                      <span className="font-serif text-lg text-terracotta dark:text-red-300">{formatMoney(c.spent, currency)}</span>
+                      <span className="font-serif text-lg text-terracotta dark:text-terracotta-light">{formatMoney(c.spent, currency)}</span>
                     </div>
                     <div className="flex flex-col text-right">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Left</span>
