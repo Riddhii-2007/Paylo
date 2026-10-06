@@ -14,6 +14,7 @@ import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
 import { useTheme } from '../hooks/useTheme'
 import { Chip } from '../components/ui/Chip'
 import { validatePin, createPinRecord } from '../lib/pinAuth'
+import { EditIcon, TrashIcon } from '../components/icons'
 
 export function Settings() {
   const settingsArr = useLiveQuery(() => db.settings.toArray())
@@ -272,7 +273,7 @@ export function Settings() {
               Changes the symbol displayed. <span className="font-medium text-terracotta">Existing amounts are NOT converted.</span>
             </p>
             <button
-              className="w-full bg-cream dark:bg-navy border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 text-left text-navy dark:text-cream text-lg"
+              className="w-full bg-transparent border-b border-gold/30 dark:border-gold/30 focus:border-gold dark:focus:border-gold py-2 text-left font-sans text-lg text-navy dark:text-cream focus:outline-none transition-colors"
               onClick={() => setIsCurrencyPickerOpen(true)}
             >
               {displayCurrency}
@@ -289,7 +290,7 @@ export function Settings() {
                 setCycleDay(e.target.value)
                 handleSaveCycleDay(e.target.value)
               }}
-              className="w-full bg-cream dark:bg-navy border border-navy/20 dark:border-gold/30 rounded-xl px-4 py-3 font-sans text-lg text-navy dark:text-cream focus:outline-none"
+              className="w-full bg-transparent border-b border-gold/30 dark:border-gold/30 focus:border-gold dark:focus:border-gold py-2 font-sans text-lg text-navy dark:text-cream focus:outline-none transition-colors"
             >
               {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                 <option key={day} value={day}>{day}</option>
@@ -334,8 +335,8 @@ export function Settings() {
               </div>
               {cat.id !== 'other' && (
                 <div className="flex -mr-2">
-                  <button onClick={() => handleOpenEdit(cat)} className="h-11 px-3 text-sm flex items-center justify-center text-navy/60 dark:text-silver-muted hover:text-navy dark:hover:text-cream">Edit</button>
-                  <button onClick={() => handleDeleteRequest(cat)} className="h-11 px-3 text-sm flex items-center justify-center text-terracotta hover:opacity-80">Delete</button>
+                  <button onClick={() => handleOpenEdit(cat)} className="w-11 h-11 flex items-center justify-center text-navy/60 hover:text-navy dark:text-silver-muted dark:hover:text-gold" aria-label="Edit category"><EditIcon className="w-5 h-5" /></button>
+                  <button onClick={() => handleDeleteRequest(cat)} className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-200" aria-label="Delete category"><TrashIcon className="w-5 h-5" /></button>
                 </div>
               )}
             </div>

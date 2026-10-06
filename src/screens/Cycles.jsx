@@ -234,11 +234,11 @@ export function Cycles() {
                   <div className="flex justify-between text-sm mt-2">
                     <div className="flex flex-col">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Received</span>
-                      <span className="font-serif text-lg text-teal-dark dark:text-teal-400">{formatMoney(c.received, currency)}</span>
+                      <span className="font-serif text-lg text-teal-dark dark:text-teal-300">{formatMoney(c.received, currency)}</span>
                     </div>
                     <div className="flex flex-col text-center">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Spent</span>
-                      <span className="font-serif text-lg text-terracotta dark:text-red-400">{formatMoney(c.spent, currency)}</span>
+                      <span className="font-serif text-lg text-terracotta dark:text-red-300">{formatMoney(c.spent, currency)}</span>
                     </div>
                     <div className="flex flex-col text-right">
                       <span className="text-navy/60 dark:text-silver-muted text-xs uppercase tracking-wider font-medium mb-1">Left</span>
@@ -330,7 +330,7 @@ export function Cycles() {
                                     </button>
                                     <button 
                                       onClick={() => setDeleteAdditionConfirm({ cycle: c, index: idx })}
-                                      className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                      className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-200"
                                       aria-label="Delete extra money"
                                     >
                                       <TrashIcon className="w-4 h-4" />

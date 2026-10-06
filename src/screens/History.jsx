@@ -217,7 +217,7 @@ export function History() {
                               </button>
                               <button 
                                 onClick={() => handleDelete(item)}
-                                className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-200"
                                 aria-label="Delete expense"
                               >
                                 <TrashIcon className="w-5 h-5" />
