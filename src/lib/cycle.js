@@ -195,3 +195,8 @@ export function willExpenseExceedBalance(minorAmount, expenseDate, allCycles, al
   const remaining = Math.max(0, received - spent)
   return minorAmount > remaining
 }
+
+export function checkLowBalance(rawRemaining, lowBalanceWarning) {
+  if (lowBalanceWarning === null || lowBalanceWarning === undefined) return false
+  return rawRemaining <= lowBalanceWarning
+}

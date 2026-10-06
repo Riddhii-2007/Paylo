@@ -6,7 +6,8 @@ import { PageTransition } from '../components/layout/PageTransition'
 import { i18n } from '../lib/i18n'
 import { 
   findCycleForDate, getDaysLeft, isCycleEnded, getExpensesForCycle, 
-  suggestNextStartDate, validateStartDateEdit, getCycleEndDate, sortCycles
+  suggestNextStartDate, validateStartDateEdit, getCycleEndDate, sortCycles,
+  checkLowBalance
 } from '../lib/cycle'
 import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
@@ -101,7 +102,7 @@ export function Home() {
   const remaining = Math.max(0, rawRemaining)
   const dailyBudget = daysLeft > 0 ? Math.max(0, remaining / daysLeft) : 0
 
-  const isLowBalance = lowBalanceWarning !== null ? rawRemaining < lowBalanceWarning : false
+  const isLowBalance = checkLowBalance(rawRemaining, lowBalanceWarning)
 
   // ── Savings ───────────────────────────────────────────────────────────────
   const savings = useMemo(() => {

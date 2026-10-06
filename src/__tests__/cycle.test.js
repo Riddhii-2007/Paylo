@@ -6,7 +6,8 @@ import {
   isCycleEnded,
   getExpensesForCycle,
   suggestNextStartDate,
-  validateStartDateEdit
+  validateStartDateEdit,
+  checkLowBalance
 } from '../lib/cycle'
 
 describe('Cycle Logic', () => {
@@ -264,5 +265,22 @@ describe('Cycle Logic', () => {
       // Next start is Jan 31 -> end is Jan 30
       expect(getCycleEndDate(0, cycles, 31)).toBe('2027-01-30')
     })
+  })
+})
+
+
+describe('checkLowBalance', () => {
+  it('returns true when remaining is exactly equal to threshold', () => {
+    expect(checkLowBalance(500, 500)).toBe(true)
+  })
+  it('returns true when remaining is below threshold', () => {
+    expect(checkLowBalance(400, 500)).toBe(true)
+  })
+  it('returns false when remaining is above threshold', () => {
+    expect(checkLowBalance(600, 500)).toBe(false)
+  })
+  it('returns false when threshold is null or undefined', () => {
+    expect(checkLowBalance(400, null)).toBe(false)
+    expect(checkLowBalance(400, undefined)).toBe(false)
   })
 })

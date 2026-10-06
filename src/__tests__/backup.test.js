@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { importJson, exportCsv, exportJson } from '../lib/backup'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import { importJson, exportCsv, exportJson, exportEncryptedJson, importEncryptedJson } from '../lib/backup'
 import { db } from '../lib/db'
 import Dexie from 'dexie'
 import 'fake-indexeddb/auto'
@@ -10,6 +10,14 @@ describe('Backup & Export Safety', () => {
     await db.settings.clear()
     await db.expenses.clear()
     await db.cycles.clear()
+  })
+
+  // Mock crypto since it's not available in JSDOM/Vitest by default
+  beforeAll(async () => {
+    if (!globalThis.crypto || !globalThis.crypto.subtle) {
+      const { webcrypto } = await import('node:crypto')
+      globalThis.crypto = webcrypto
+    }
   })
 
   describe('CSV Export Formula Injection Guard', () => {
@@ -189,6 +197,57 @@ describe('Backup & Export Safety', () => {
       expect(categories.value[0].name).toBe('Cat1')
 
       // PIN should NOT be exported in plain JSON
+      const pin = await db.settings.get('pin')
+      expect(pin).toBeUndefined()
+
+      // Expenses
+      const e = await db.expenses.toArray()
+      expect(e.length).toBe(1)
+      expect(e[0].amount).toBe(500)
+      expect(e[0].note).toBe('test')
+
+      // Cycles
+      const c = await db.cycles.toArray()
+      expect(c.length).toBe(1)
+      expect(c[0].extras.length).toBe(1)
+      expect(c[0].extras[0].amount).toBe(200)
+      expect(c[0].extras[0].note).toBe('bonus')
+    })
+
+    it('exports and imports identical data successfully including encrypted JSON', async () => {
+      // Setup initial data with ALL fields
+      await db.settings.put({ key: 'cycleDay', value: 'last' })
+      await db.settings.put({ key: 'openingSavings', value: 1000 })
+      await db.settings.put({ key: 'categories', value: [{ id: 'c1', name: 'Cat1', emoji: '🐱' }] })
+      await db.settings.put({ key: 'pin', value: { hash: 'abc', salt: '123', iterations: 1000 } })
+
+      await db.expenses.add({ amount: 500, categoryId: 'c1', note: 'test', date: '2026-10-10', createdAt: 100 })
+      await db.cycles.add({ startDate: '2026-10-01', income: 1000, extras: [{ amount: 200, date: '2026-10-02', note: 'bonus' }] })
+
+      // Export Encrypted
+      const password = 'my-secure-password'
+      const blob = await exportEncryptedJson(password)
+      const buffer = await blob.arrayBuffer()
+
+      // Clear DB
+      await db.settings.clear()
+      await db.expenses.clear()
+      await db.cycles.clear()
+
+      // Import Encrypted
+      await importEncryptedJson(new Blob([buffer], { type: 'application/octet-stream' }), password)
+
+      // Verify settings
+      const cycleDay = await db.settings.get('cycleDay')
+      expect(cycleDay.value).toBe('last')
+
+      const openingSavings = await db.settings.get('openingSavings')
+      expect(openingSavings.value).toBe(1000)
+
+      const categories = await db.settings.get('categories')
+      expect(categories.value[0].name).toBe('Cat1')
+
+      // PIN should NOT be exported
       const pin = await db.settings.get('pin')
       expect(pin).toBeUndefined()
 

@@ -8,7 +8,7 @@ import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { exportJson, importJson, exportCsv, exportEncryptedJson, importEncryptedJson, getBackupReminderStatus } from '../lib/backup'
-import { formatDate } from '../lib/format'
+import { formatDate, getTodayStr } from '../lib/format'
 import { CURRENCY_PRESETS } from '../lib/constants'
 import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
 import { PayDayPickerSheet } from '../components/PayDayPickerSheet'
@@ -191,7 +191,7 @@ export function Settings() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `paylo-backup-${formatDate(new Date().toISOString())}.json`
+      a.download = `paylo-backup-${getTodayStr()}.json`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) { alert(e.message) }
@@ -205,7 +205,7 @@ export function Settings() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `paylo-encrypted-backup-${formatDate(new Date().toISOString())}.bin`
+      a.download = `paylo-encrypted-backup-${getTodayStr()}.bin`
       a.click()
       URL.revokeObjectURL(url)
       setEncExportPass(''); setEncExportConfirm(''); setIsEncExportOpen(false)
@@ -406,7 +406,7 @@ export function Settings() {
                 const url = URL.createObjectURL(blob)
                 const a = document.createElement('a')
                 a.href = url
-                a.download = `paylo-expenses-${formatDate(new Date().toISOString())}.csv`
+                a.download = `paylo-expenses-${getTodayStr()}.csv`
                 a.click()
                 URL.revokeObjectURL(url)
               } catch (e) { alert(e.message) }
