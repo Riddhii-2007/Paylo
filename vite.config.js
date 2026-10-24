@@ -33,8 +33,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,woff2,png,svg}'],
       },
       manifest: {
-        name: 'Expense Tracker',
-        short_name: 'Expenses',
+        name: 'Paylo',
+        short_name: 'Paylo',
+        description: 'Paycheck-to-paycheck expense tracker',
         start_url: './',
         display: 'standalone',
         background_color: '#1B2A41',
