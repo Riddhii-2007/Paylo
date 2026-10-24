@@ -18,6 +18,7 @@ import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { AddExpenseSheet } from '../components/AddExpenseSheet'
 import { computeSavings } from '../lib/savings'
+import { calculatePace } from '../lib/pace'
 
 const BAR_COLORS = [
   'bg-gold/50', 'bg-silver/50', 'bg-teal/50', 'bg-terracotta/50', 'bg-sand/50',
@@ -101,7 +102,20 @@ export function Home() {
   
   const rawRemaining = totalIncome - totalSpent
   const remaining = Math.max(0, rawRemaining)
-  const dailyBudget = daysLeft > 0 ? Math.max(0, remaining / daysLeft) : 0
+
+  const pace = useMemo(() => {
+    return calculatePace({
+      currentCycle,
+      cycleExpenses,
+      allCycles,
+      allExpenses,
+      today,
+      cycleDay,
+      currency,
+      remaining,
+      daysLeft,
+    })
+  }, [currentCycle, cycleExpenses, allCycles, allExpenses, today, cycleDay, currency, remaining, daysLeft])
 
   const isLowBalance = checkLowBalance(remaining, lowBalanceWarning)
 
@@ -300,12 +314,33 @@ export function Home() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 mb-8">
-          <StatBox label={i18n.home.spentToday} value={formatMoney(spentToday, currency)} />
-          <StatBox label={i18n.home.daysLeft} value={daysLeft} />
-          <StatBox label={i18n.home.totalSpent} value={formatMoney(totalSpent, currency)} />
-          <StatBox label={i18n.home.daily} value={formatMoneyNoDecimals(dailyBudget, currency)} />
-        </div>
+        {!pace.hide && (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <StatBox label={i18n.home.spentToday} value={formatMoney(spentToday, currency)} />
+              <StatBox label={i18n.home.daysLeft} value={daysLeft} />
+              <StatBox label={i18n.home.totalSpent} value={formatMoney(totalSpent, currency)} />
+              <StatBox
+                label="Daily budget"
+                value={formatMoneyNoDecimals(pace.dailyBudget, currency)}
+                caption="to last until the next cycle"
+              />
+              <StatBox
+                label={pace.avgLabel}
+                value={pace.avgPerDay !== null ? formatMoney(pace.avgPerDay, currency) : "—"}
+                caption={pace.avgCaption}
+                className="col-span-2"
+              />
+            </div>
+
+            {pace.paceMessage && (
+              <p className="text-xs text-navy/70 dark:text-silver-muted px-1 mb-8">
+                {pace.paceMessage}
+              </p>
+            )}
+            {!pace.paceMessage && <div className="mb-5" />}
+          </>
+        )}
 
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-serif text-xl text-navy dark:text-cream">{i18n.home.categoryBreakdown}</h2>
