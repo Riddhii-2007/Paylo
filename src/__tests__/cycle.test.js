@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   findCycleForDate,
+  getCurrentCycle,
   getCycleEndDate,
   getDaysLeft,
   isCycleEnded,
@@ -10,7 +11,10 @@ import {
   checkLowBalance,
   getCycleEditAllowedRange,
   findInvalidCycles,
-  repairInvalidCycleDate
+  repairInvalidCycleDate,
+  validateAmount,
+  isMuchLargerThanLastCycle,
+  getDeleteCycleImpact
 } from '../lib/cycle'
 
 describe('Cycle Logic', () => {
@@ -209,19 +213,19 @@ describe('Cycle Logic', () => {
       expect(range.next.startDate).toBe('2026-09-22')
     })
 
-    it('latest cycle: min is day after prev, max is one year from today', () => {
+    it('latest cycle: min is day after prev, max is 7 days from today', () => {
       const range = getCycleEditAllowedRange(2, cycles, today)
       expect(range.min).toBe('2026-09-23')
-      expect(range.max).toBe('2027-10-24')
+      expect(range.max).toBe('2026-10-31')
       expect(range.prev.startDate).toBe('2026-09-22')
       expect(range.next).toBeNull()
     })
 
-    it('single cycle: min is 2000-01-01, max is one year from today', () => {
+    it('single cycle: min is 2000-01-01, max is 7 days from today', () => {
       const single = [{ id: 1, startDate: '2026-10-22' }]
       const range = getCycleEditAllowedRange(0, single, today)
       expect(range.min).toBe('2000-01-01')
-      expect(range.max).toBe('2027-10-24')
+      expect(range.max).toBe('2026-10-31')
       expect(range.prev).toBeNull()
       expect(range.next).toBeNull()
     })
@@ -258,10 +262,10 @@ describe('Cycle Logic', () => {
       expect(r2.error).toBe('Start date cannot be before 2000.')
     })
 
-    it('shows "Start date cannot be more than a year in the future." when past +1 year', () => {
-      const r1 = validateStartDateEdit('2027-10-25', 1, cycles, 22, today)
+    it('shows "Start date cannot be more than 7 days in the future." when past 7 days', () => {
+      const r1 = validateStartDateEdit('2026-11-01', 1, cycles, 22, today)
       expect(r1.valid).toBe(false)
-      expect(r1.error).toBe('Start date cannot be more than a year in the future.')
+      expect(r1.error).toBe('Start date cannot be more than 7 days in the future.')
     })
 
     it('names neighbouring next cycle and allowed range when overlapping next', () => {
@@ -422,5 +426,134 @@ describe('checkLowBalance', () => {
   it('returns false when threshold is null or undefined', () => {
     expect(checkLowBalance(400, null)).toBe(false)
     expect(checkLowBalance(400, undefined)).toBe(false)
+  })
+})
+
+describe('getCurrentCycle', () => {
+  const today = '2026-10-24'
+  const cycleDay = 24
+
+  it('selects the cycle that contains today, never the latest future cycle', () => {
+    const cycles = [
+      { id: 1, startDate: '2026-09-24', income: 50000 },
+      { id: 2, startDate: '2026-10-24', income: 50000 },
+      { id: 3, startDate: '2026-11-24', income: 2345678 } // future cycle from focus bug
+    ]
+    // Today is 2026-10-24. Cycle 2 starts 2026-10-24 and ends 2026-11-23.
+    // Cycle 3 starts in the future.
+    const current = getCurrentCycle(cycles, cycleDay, today)
+    expect(current).toBeDefined()
+    expect(current.id).toBe(2)
+  })
+
+  it('selects current cycle in the middle of the list', () => {
+    const cycles = [
+      { id: 1, startDate: '2026-08-01' },
+      { id: 2, startDate: '2026-09-01' },
+      { id: 3, startDate: '2026-10-01' },
+      { id: 4, startDate: '2026-11-01' }
+    ]
+    // today is 2026-09-15 -> cycle 2 contains today (index 1)
+    const current = getCurrentCycle(cycles, 1, '2026-09-15')
+    expect(current?.id).toBe(2)
+  })
+
+  it('returns null when today has passed all cycles or when all cycles are in the future', () => {
+    const cycles = [
+      { id: 1, startDate: '2026-09-01' },
+      { id: 2, startDate: '2026-10-01' }  // ends 2026-10-31 (with cycleDay 1)
+    ]
+    // 1. Today is after all cycles have ended (2026-11-15 > 2026-10-31)
+    expect(getCurrentCycle(cycles, 1, '2026-11-15')).toBeNull()
+
+    // 2. Today is before all cycles (2026-08-15 < 2026-09-01)
+    expect(getCurrentCycle(cycles, 1, '2026-08-15')).toBeNull()
+  })
+})
+
+describe('validateAmount & isMuchLargerThanLastCycle', () => {
+  it('validateAmount rejects zero and negative amounts', () => {
+    expect(validateAmount(0, '₹').valid).toBe(false)
+    expect(validateAmount(0, '₹').error).toBe('Amount must be greater than 0.')
+
+    expect(validateAmount(-100, '₹').valid).toBe(false)
+    expect(validateAmount(-100, '₹').error).toBe('Amount must be greater than 0.')
+
+    expect(validateAmount(NaN, '₹').valid).toBe(false)
+  })
+
+  it('validateAmount enforces hard max of 1,000,000,000 minor units', () => {
+    expect(validateAmount(1_000_000_000, '₹').valid).toBe(true)
+
+    const overMax = validateAmount(1_000_000_001, '₹')
+    expect(overMax.valid).toBe(false)
+    expect(overMax.error).toContain('Amount cannot exceed')
+  })
+
+  it('validateAmount accepts valid amounts', () => {
+    expect(validateAmount(5000, '₹').valid).toBe(true)
+    expect(validateAmount(5000, '₹').error).toBeNull()
+  })
+
+  it('isMuchLargerThanLastCycle flags amounts more than 10x previous cycle', () => {
+    const lastCycleAmount = 5000000 // 50,000.00
+    // Exactly 10x is not more than 10x
+    expect(isMuchLargerThanLastCycle(50000000, lastCycleAmount)).toBe(false)
+    // 10x + 1 is more than 10x
+    expect(isMuchLargerThanLastCycle(50000001, lastCycleAmount)).toBe(true)
+    // 2,345,678 (234,567,800 minor units) is ~46x
+    expect(isMuchLargerThanLastCycle(234567800, lastCycleAmount)).toBe(true)
+  })
+
+  it('isMuchLargerThanLastCycle returns false if no previous cycle or last amount is 0', () => {
+    expect(isMuchLargerThanLastCycle(5000000, 0)).toBe(false)
+    expect(isMuchLargerThanLastCycle(5000000, null)).toBe(false)
+    expect(isMuchLargerThanLastCycle(5000000, undefined)).toBe(false)
+  })
+})
+
+describe('getDeleteCycleImpact', () => {
+  const cycles = [
+    { id: 1, startDate: '2026-08-22', income: 50000, extras: [] },
+    { id: 2, startDate: '2026-09-22', income: 50000, extras: [{ amount: 1000, date: '2026-09-25' }, { amount: 2000, date: '2026-10-05' }] },
+    { id: 3, startDate: '2026-10-22', income: 50000, extras: [{ amount: 500, date: '2026-10-25' }] }
+  ]
+  const expenses = [
+    { id: 10, date: '2026-08-25', amount: 500 }, // cycle 1
+    { id: 20, date: '2026-09-23', amount: 1200 }, // cycle 2
+    { id: 21, date: '2026-10-10', amount: 800 },  // cycle 2
+    { id: 30, date: '2026-10-23', amount: 300 }   // cycle 3
+  ]
+
+  it('calculates orphaned expenses and extras when deleting the latest cycle', () => {
+    // When cycle 3 is deleted, remaining cycles are 1 and 2.
+    // Cycle 2 ends on 2026-10-21.
+    // Expense id:30 (date 2026-10-23) falls outside any cycle afterward!
+    const impact = getDeleteCycleImpact(cycles[2], cycles, expenses, 22)
+    expect(impact.orphanedExpensesCount).toBe(1)
+    expect(impact.orphanedExtrasCount).toBe(1)
+  })
+
+  it('calculates orphaned extras when middle cycle expenses are absorbed by previous cycle', () => {
+    // When cycle 2 is deleted, cycle 1's end date extends to cycle 3's start date (2026-10-21).
+    // Expenses 20 and 21 are absorbed into cycle 1, so 0 expenses are orphaned.
+    // However, cycle 2's 2 extra-money entries are orphaned.
+    const impact = getDeleteCycleImpact(cycles[1], cycles, expenses, 22)
+    expect(impact.orphanedExpensesCount).toBe(0)
+    expect(impact.orphanedExtrasCount).toBe(2)
+  })
+
+  it('calculates orphaned expenses when the only cycle is deleted', () => {
+    const singleCycle = cycles[0]
+    const impact = getDeleteCycleImpact(singleCycle, [singleCycle], [expenses[0]], 22)
+    expect(impact.orphanedExpensesCount).toBe(1)
+    expect(impact.orphanedExtrasCount).toBe(0)
+  })
+
+  it('returns 0 when cycle has no expenses or extras', () => {
+    const emptyCycle = { id: 4, startDate: '2026-11-22', income: 50000, extras: [] }
+    const impact = getDeleteCycleImpact(emptyCycle, [...cycles, emptyCycle], expenses, 22)
+    expect(impact.orphanedExpensesCount).toBe(0)
+    expect(impact.orphanedExtrasCount).toBe(0)
   })
 })

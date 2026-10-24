@@ -1,4 +1,4 @@
-import { parseLocalDate, formatDate, isValidDateString, getTodayStr } from './format.js'
+import { parseLocalDate, formatDate, formatMoney, isValidDateString, getTodayStr } from './format.js'
 
 export function sortCycles(cycles) {
   return [...cycles].sort((a, b) => a.startDate.localeCompare(b.startDate))
@@ -18,6 +18,23 @@ export function findCycleForDate(dateStr, cycles) {
     }
   }
   return found
+}
+
+export function getCurrentCycle(cycles, cycleDaySetting, todayStr = getTodayStr()) {
+  if (!cycles || cycles.length === 0) return null
+  const sorted = sortCycles(cycles)
+
+  // Look for a cycle that strictly contains today (startDate <= todayStr <= endDate)
+  for (let i = 0; i < sorted.length; i++) {
+    const cycle = sorted[i]
+    if (cycle.startDate > todayStr) continue // future cycle
+    const endDate = getCycleEndDate(i, sorted, cycleDaySetting)
+    if (cycle.startDate <= todayStr && todayStr <= endDate) {
+      return cycle
+    }
+  }
+
+  return null
 }
 
 function getDaysInMonth(year, month) {
@@ -168,7 +185,7 @@ export function getCycleEditAllowedRange(cycleIndex, cycles, todayStr = getToday
   const prev = sorted[cycleIndex - 1]
   const next = sorted[cycleIndex + 1]
 
-  const maxFutureDate = getOneYearFromToday(todayStr)
+  const maxFutureDate = addDays(todayStr, 7)
   const minLimit = '2000-01-01'
 
   let minDate = minLimit
@@ -194,7 +211,7 @@ export function getCycleEditAllowedRange(cycleIndex, cycles, todayStr = getToday
 
 export function findInvalidCycles(cycles, todayStr = getTodayStr()) {
   if (!cycles || !Array.isArray(cycles)) return []
-  const maxFutureDate = getOneYearFromToday(todayStr)
+  const maxFutureDate = addDays(todayStr, 7)
   return cycles.filter(c => {
     if (!c.startDate || !isValidDateString(c.startDate)) return true
     if (c.startDate < '2000-01-01') return true
@@ -288,13 +305,13 @@ export function validateStartDateEdit(newDateStr, cycleIndex, cycles, cycleDaySe
     }
   }
 
-  // 3. Block start dates more than a year in the future
-  const maxFutureDate = getOneYearFromToday(todayStr)
+  // 3. Block start dates more than 7 days in the future
+  const maxFutureDate = addDays(todayStr, 7)
   if (newDateStr > maxFutureDate) {
     return {
       valid: false,
       reason: 'too_far_future',
-      error: 'Start date cannot be more than a year in the future.',
+      error: 'Start date cannot be more than 7 days in the future.',
       orphanedExtras: [],
       orphanedExpenses: []
     }
@@ -379,4 +396,45 @@ export function willExpenseExceedBalance(minorAmount, expenseDate, allCycles, al
 export function checkLowBalance(rawRemaining, lowBalanceWarning) {
   if (lowBalanceWarning === null || lowBalanceWarning === undefined) return false
   return rawRemaining <= lowBalanceWarning
+}
+
+export const MAX_AMOUNT_MINOR = 1_000_000_000
+
+export function validateAmount(amountMinor, currency = '₹') {
+  if (typeof amountMinor !== 'number' || isNaN(amountMinor) || amountMinor <= 0) {
+    return { valid: false, error: 'Amount must be greater than 0.' }
+  }
+  if (amountMinor > MAX_AMOUNT_MINOR) {
+    return { valid: false, error: `Amount cannot exceed ${formatMoney(MAX_AMOUNT_MINOR, currency)}.` }
+  }
+  return { valid: true, error: null }
+}
+
+export function isMuchLargerThanLastCycle(amountMinor, lastCycleAmountMinor) {
+  if (!lastCycleAmountMinor || typeof lastCycleAmountMinor !== 'number' || lastCycleAmountMinor <= 0) {
+    return false
+  }
+  return amountMinor > 10 * lastCycleAmountMinor
+}
+
+export function getDeleteCycleImpact(cycleToDelete, allCycles = [], allExpenses = [], cycleDaySetting = 22) {
+  if (!cycleToDelete) return { orphanedExpensesCount: 0, orphanedExtrasCount: 0 }
+  
+  const remainingCycles = allCycles.filter(c => c.id !== cycleToDelete.id)
+  const orphanedExtrasCount = (cycleToDelete.extras || []).length
+
+  const currentExpenses = getExpensesForCycle(cycleToDelete, allExpenses, allCycles, cycleDaySetting)
+  const remainingAssigned = new Set()
+  for (const remCycle of remainingCycles) {
+    const remExp = getExpensesForCycle(remCycle, allExpenses, remainingCycles, cycleDaySetting)
+    for (const e of remExp) {
+      remainingAssigned.add(e.id)
+    }
+  }
+
+  const orphanedExpenses = currentExpenses.filter(e => !remainingAssigned.has(e.id))
+  return {
+    orphanedExpensesCount: orphanedExpenses.length,
+    orphanedExtrasCount
+  }
 }

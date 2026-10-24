@@ -10,18 +10,19 @@
  * This file has no side effects and no DB imports.
  */
 
-import { sortCycles, getCycleEndDate, getExpensesForCycle, findCycleForDate } from './cycle.js'
+import { sortCycles, getCycleEndDate, getExpensesForCycle, getCurrentCycle } from './cycle.js'
 
 /**
  * @typedef {Object} CycleSavingsEntry
  * @property {number|string} id           – cycle id
  * @property {boolean} isFinished         – true if this cycle has ended
+ * @property {boolean} [isFuture]         – true if this cycle starts in the future
  * @property {boolean} skipped            – true if received === 0 (cycle ignored)
  * @property {number}  received           – income + extras (minor units)
  * @property {number}  spent              – total expenses (minor units)
  * @property {number}  delta              – received − spent (can be negative)
  * @property {number}  runningTotal       – cumulative savings after this cycle (incl. opening)
- * @property {boolean} isCurrentCycle     – true for the most-recent (possibly unfinished) cycle
+ * @property {boolean} isCurrentCycle     – true for the cycle that contains today
  */
 
 /**
@@ -69,7 +70,8 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
   }
 
   const sorted = sortCycles(cycles)
-  const currentCycleId = findCycleForDate(todayStr, sorted)?.id
+  const currentCycle = getCurrentCycle(sorted, cycleDay, todayStr)
+  const currentCycleId = currentCycle?.id
 
   let running = opening
   const cycleEntries = []
@@ -83,8 +85,9 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
   for (let i = 0; i < sorted.length; i++) {
     const cycle = sorted[i]
     const endDate = getCycleEndDate(i, sorted, cycleDay)
-    const isFinished = todayStr > endDate
+    const isFuture = cycle.startDate > todayStr
     const isCurrentCycle = cycle.id === currentCycleId
+    const isFinished = !isFuture && !isCurrentCycle && todayStr > endDate
 
     const cycleExpenses = getExpensesForCycle(cycle, expenses, sorted, cycleDay)
     const spent = cycleExpenses.reduce((sum, e) => sum + e.amount, 0)
@@ -96,6 +99,7 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
       cycleEntries.push({
         id: cycle.id,
         isFinished,
+        isFuture,
         skipped: true,
         received: 0,
         spent,
@@ -113,12 +117,12 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
       continue
     }
 
-    if (isFinished) {
-      // Finished cycle — count it permanently
-      running += delta
+    if (isFuture) {
+      // Future cycle — not counted in saved or projected savings
       cycleEntries.push({
         id: cycle.id,
-        isFinished: true,
+        isFinished: false,
+        isFuture: true,
         skipped: false,
         received,
         spent,
@@ -126,8 +130,8 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
         runningTotal: running,
         isCurrentCycle: false,
       })
-    } else {
-      // Ongoing (current) cycle — projection only
+    } else if (isCurrentCycle) {
+      // Ongoing (current) cycle — projection only: projection = saved + current cycle delta
       const availableSavings = Math.max(0, running)
       currentCycleSurplus = delta
       
@@ -140,12 +144,41 @@ export function computeSavings(cycles, expenses, openingSavings, cycleDay, today
       cycleEntries.push({
         id: cycle.id,
         isFinished: false,
+        isFuture: false,
         skipped: false,
         received,
         spent,
         delta,
         runningTotal: running + delta, // projection, not committed
         isCurrentCycle: true,
+      })
+    } else if (isFinished || cycle.startDate < (currentCycle?.startDate || '9999-99-99')) {
+      // Finished cycle — count it permanently
+      running += delta
+      cycleEntries.push({
+        id: cycle.id,
+        isFinished: true,
+        isFuture: false,
+        skipped: false,
+        received,
+        spent,
+        delta,
+        runningTotal: running,
+        isCurrentCycle: false,
+      })
+    } else {
+      // Any other past cycle
+      running += delta
+      cycleEntries.push({
+        id: cycle.id,
+        isFinished: true,
+        isFuture: false,
+        skipped: false,
+        received,
+        spent,
+        delta,
+        runningTotal: running,
+        isCurrentCycle: false,
       })
     }
   }

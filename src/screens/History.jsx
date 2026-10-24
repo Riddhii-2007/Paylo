@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, AnimatePresence } from 'motion/react'
 import { db } from '../lib/db'
-import { getExpensesForCycle, sortCycles, getCycleEndDate } from '../lib/cycle'
+import { getExpensesForCycle, sortCycles, getCycleEndDate, getCurrentCycle } from '../lib/cycle'
 import { formatMoney, parseLocalDate, getTodayStr, formatDate } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { PageTransition } from '../components/layout/PageTransition'
@@ -42,8 +42,8 @@ export function History() {
   // Find current cycle
   const currentCycle = useMemo(() => {
     if (sortedCycles.length === 0) return null
-    return sortedCycles.find(c => c.startDate <= today) || sortedCycles[0]
-  }, [sortedCycles, today])
+    return getCurrentCycle(sortedCycles, cycleDay, today) || sortedCycles[0]
+  }, [sortedCycles, cycleDay, today])
 
   // Resolve active cycle to display
   const activeCycle = useMemo(() => {

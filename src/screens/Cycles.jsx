@@ -3,8 +3,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, AnimatePresence } from 'motion/react'
 import { db } from '../lib/db'
 import { 
-  sortCycles, getCycleEndDate, getExpensesForCycle, validateStartDateEdit, findCycleForDate,
-  getCycleEditAllowedRange, findInvalidCycles, repairInvalidCycleDate, getOneYearFromToday
+  sortCycles, getCycleEndDate, getExpensesForCycle, validateStartDateEdit,
+  getCurrentCycle, getCycleEditAllowedRange, findInvalidCycles, repairInvalidCycleDate,
+  addDays, validateAmount, isMuchLargerThanLastCycle, getDeleteCycleImpact
 } from '../lib/cycle'
 import { formatMoney, formatDate, getTodayStr, toMinorUnits, toMajorUnits } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
@@ -29,6 +30,8 @@ export function Cycles() {
   const [editDate, setEditDate] = useState('')
   const [editIncome, setEditIncome] = useState('')
   const [confirmCycleEdit, setConfirmCycleEdit] = useState(null)
+  const [confirmDeleteCycle, setConfirmDeleteCycle] = useState(null)
+  const [confirmLargeAmount, setConfirmLargeAmount] = useState(null)
 
   // Edit Addition State
   const [isEditAdditionOpen, setIsEditAdditionOpen] = useState(false)
@@ -58,6 +61,8 @@ export function Cycles() {
     if (!savings) return {}
     return Object.fromEntries(savings.cycleEntries.map(e => [String(e.id), e]))
   }, [savings])
+
+  const currentCycle = useMemo(() => getCurrentCycle(sortedCycles, cycleDay, today), [sortedCycles, cycleDay, today])
 
   const cyclesData = useMemo(() => {
     if (!sortedCycles.length || !allExpenses) return []
@@ -91,10 +96,11 @@ export function Cycles() {
         remaining,
         breakdown,
         extras,
-        isCurrentCycle: findCycleForDate(today, sortedCycles)?.id === cycle.id
+        isCurrentCycle: currentCycle?.id === cycle.id,
+        isFuture: cycle.startDate > today
       }
     })
-  }, [sortedCycles, allExpenses, cycleDay, today])
+  }, [sortedCycles, allExpenses, cycleDay, today, currentCycle])
 
   // Invalid cycle detection
   const invalidCycles = useMemo(() => findInvalidCycles(allCycles || [], today), [allCycles, today])
@@ -108,7 +114,7 @@ export function Cycles() {
 
   // --- Cycle Editing ---
   const editRange = useMemo(() => {
-    if (!editingCycle || !sortedCycles.length) return { min: '2000-01-01', max: getOneYearFromToday(today) }
+    if (!editingCycle || !sortedCycles.length) return { min: '2000-01-01', max: addDays(today, 7) }
     return getCycleEditAllowedRange(editingCycle.index, sortedCycles, today)
   }, [editingCycle, sortedCycles, today])
 
@@ -116,6 +122,18 @@ export function Cycles() {
     if (!editingCycle || !sortedCycles.length) return { valid: false, error: 'No active cycle' }
     return validateStartDateEdit(editDate, editingCycle.index, sortedCycles, cycleDay, editingCycle.expenses || [], today)
   }, [editDate, editingCycle, sortedCycles, cycleDay, today])
+
+  const editIncomeValidation = useMemo(() => {
+    if (!editIncome || String(editIncome).trim() === '') return { valid: false, error: 'Enter an amount.' }
+    const inc = toMinorUnits(editIncome, currency)
+    return validateAmount(inc, currency)
+  }, [editIncome, currency])
+
+  const additionAmountValidation = useMemo(() => {
+    if (!additionAmount || additionAmount.trim() === '') return { valid: false, error: 'Enter an amount.' }
+    const amt = toMinorUnits(additionAmount, currency)
+    return validateAmount(amt, currency)
+  }, [additionAmount, currency])
 
   const handleEditCycleInit = (e, cycle) => {
     e.stopPropagation()
@@ -126,16 +144,30 @@ export function Cycles() {
   }
 
   const submitCycleEdit = () => {
-    if (!editValidation.valid) return
-    const val = editValidation
-    
+    if (!editValidation.valid || !editIncomeValidation.valid) return
     const inc = toMinorUnits(editIncome, currency)
     const updates = { startDate: editDate, income: inc }
+    const prevCycle = editingCycle.index > 0 ? sortedCycles[editingCycle.index - 1] : null
 
-    if ((val.orphanedExtras && val.orphanedExtras.length > 0) || (val.orphanedExpenses && val.orphanedExpenses.length > 0)) {
-      setConfirmCycleEdit({ updates, orphanedExtras: val.orphanedExtras || [], orphanedExp: val.orphanedExpenses || [] })
+    const doProceed = () => {
+      const val = editValidation
+      if ((val.orphanedExtras && val.orphanedExtras.length > 0) || (val.orphanedExpenses && val.orphanedExpenses.length > 0)) {
+        setConfirmCycleEdit({ updates, orphanedExtras: val.orphanedExtras || [], orphanedExp: val.orphanedExpenses || [] })
+      } else {
+        finalizeCycleEdit(updates)
+      }
+    }
+
+    if (prevCycle && prevCycle.income > 0 && isMuchLargerThanLastCycle(inc, prevCycle.income)) {
+      setConfirmLargeAmount({
+        message: `That's much larger than last cycle (${formatMoney(prevCycle.income, currency)}). Is it correct?`,
+        onConfirm: () => {
+          setConfirmLargeAmount(null)
+          doProceed()
+        }
+      })
     } else {
-      finalizeCycleEdit(updates)
+      doProceed()
     }
   }
 
@@ -149,6 +181,35 @@ export function Cycles() {
     setEditingCycle(null)
   }
 
+  const handleDeleteCycleInit = () => {
+    if (!editingCycle) return
+    const { orphanedExpensesCount, orphanedExtrasCount } = getDeleteCycleImpact(editingCycle, sortedCycles, allExpenses, cycleDay)
+    const expPart = orphanedExpensesCount === 1 ? '1 expense' : `${orphanedExpensesCount} expenses`
+    const extraPart = orphanedExtrasCount === 1 ? '1 extra-money entry' : `${orphanedExtrasCount} extra-money entries`
+    let details = ''
+    if (orphanedExpensesCount > 0 && orphanedExtrasCount > 0) {
+      details = ` ${expPart} and ${extraPart} will fall outside any cycle afterward. Expenses are never deleted and will show as Unassigned.`
+    } else if (orphanedExpensesCount > 0) {
+      details = ` ${expPart} will fall outside any cycle afterward. Expenses are never deleted and will show as Unassigned.`
+    } else if (orphanedExtrasCount > 0) {
+      details = ` ${extraPart} will fall outside any cycle afterward.`
+    } else {
+      details = ' No expenses or extra-money entries will be affected.'
+    }
+    setConfirmDeleteCycle({
+      cycle: editingCycle,
+      message: `Are you sure you want to delete this cycle?${details}`
+    })
+  }
+
+  const handleConfirmDeleteCycle = async () => {
+    if (!confirmDeleteCycle?.cycle) return
+    await db.cycles.delete(confirmDeleteCycle.cycle.id)
+    setConfirmDeleteCycle(null)
+    setIsEditCycleOpen(false)
+    setEditingCycle(null)
+  }
+
   // --- Addition Editing ---
   const handleEditAddition = (cycle, index, extra) => {
     setEditingAddition({ cycle, index })
@@ -158,14 +219,28 @@ export function Cycles() {
   }
 
   const saveAddition = async () => {
+    if (!additionAmountValidation.valid) return
     const amt = toMinorUnits(additionAmount, currency)
-    if (amt <= 0) return
     const { cycle, index } = editingAddition
-    const extras = [...cycle.extras]
-    extras[index] = { ...extras[index], amount: amt, note: additionNote }
-    await db.cycles.update(cycle.id, { extras })
-    setIsEditAdditionOpen(false)
-    setEditingAddition(null)
+    const ref = cycle.income > 0 ? cycle.income : (sortedCycles.length > 0 ? sortedCycles[sortedCycles.length - 1].income : 0)
+
+    const doSave = async () => {
+      const extras = [...cycle.extras]
+      extras[index] = { ...extras[index], amount: amt, note: additionNote }
+      await db.cycles.update(cycle.id, { extras })
+      setIsEditAdditionOpen(false)
+      setEditingAddition(null)
+      setConfirmLargeAmount(null)
+    }
+
+    if (ref > 0 && isMuchLargerThanLastCycle(amt, ref)) {
+      setConfirmLargeAmount({
+        message: `That's much larger than last cycle (${formatMoney(ref, currency)}). Is it correct?`,
+        onConfirm: doSave
+      })
+    } else {
+      await doSave()
+    }
   }
 
   const confirmDeleteAddition = async () => {
@@ -265,6 +340,11 @@ export function Cycles() {
                           Current Cycle
                         </span>
                       )}
+                      {c.isFuture && (
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-navy/5 dark:bg-silver/10 text-navy/60 dark:text-silver-muted text-[10px] uppercase tracking-wider font-semibold rounded">
+                          Upcoming Cycle
+                        </span>
+                      )}
                     </div>
                     <button 
                       onClick={(e) => handleEditCycleInit(e, c)}
@@ -291,7 +371,7 @@ export function Cycles() {
                   </div>
 
                   {/* Per-cycle savings badge */}
-                  {se && !se.skipped && (
+                  {se && !se.skipped && !c.isFuture && (
                     <div className={`flex justify-between items-center rounded-lg px-3 py-2 text-xs font-medium ${
                       se.isCurrentCycle
                         ? 'bg-gold/10 border border-gold/20 text-navy/70 dark:text-gold/80'
@@ -408,14 +488,23 @@ export function Cycles() {
             onChange={e => setEditDate(e.target.value)} 
             error={editValidation.valid ? undefined : editValidation.error}
           />
-          <Input label="Base Income" type="number" value={editIncome} onChange={e => setEditIncome(e.target.value)} />
+          <Input 
+            label="Base Income" 
+            type="number" 
+            value={editIncome} 
+            onChange={e => setEditIncome(e.target.value)} 
+            error={editIncome ? (editIncomeValidation.valid ? undefined : editIncomeValidation.error) : undefined}
+          />
           <div>
-            <Button onClick={submitCycleEdit} disabled={!editValidation.valid || !editIncome || Number(editIncome) <= 0} className="w-full mt-2">
+            <Button onClick={submitCycleEdit} disabled={!editValidation.valid || !editIncomeValidation.valid} className="w-full mt-2">
               Save changes
             </Button>
             {!editValidation.valid && (
               <p className="text-xs text-terracotta text-center mt-2">{editValidation.error}</p>
             )}
+            <Button variant="danger" onClick={handleDeleteCycleInit} className="w-full mt-3">
+              Delete cycle
+            </Button>
           </div>
         </div>
       </BottomSheet>
@@ -429,13 +518,40 @@ export function Cycles() {
         onCancel={() => setConfirmCycleEdit(null)}
       />
 
+      {/* Confirm Delete Cycle Dialog */}
+      <ConfirmDialog
+        isOpen={!!confirmDeleteCycle}
+        title="Delete cycle"
+        description={confirmDeleteCycle?.message}
+        confirmText="Yes, delete cycle"
+        danger={true}
+        onConfirm={handleConfirmDeleteCycle}
+        onCancel={() => setConfirmDeleteCycle(null)}
+      />
+
+      {/* Confirm Large Amount Dialog */}
+      <ConfirmDialog
+        isOpen={!!confirmLargeAmount}
+        title="Confirm amount"
+        description={confirmLargeAmount?.message}
+        confirmText="Yes, save"
+        onConfirm={confirmLargeAmount?.onConfirm}
+        onCancel={() => setConfirmLargeAmount(null)}
+      />
+
       {/* Edit Addition Sheet */}
       <BottomSheet isOpen={isEditAdditionOpen} onClose={() => setIsEditAdditionOpen(false)}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Edit Extra Money</h3>
         <div className="flex flex-col gap-6">
-          <Input label="Amount" type="number" value={additionAmount} onChange={e => setAdditionAmount(e.target.value)} />
+          <Input 
+            label="Amount" 
+            type="number" 
+            value={additionAmount} 
+            onChange={e => setAdditionAmount(e.target.value)} 
+            error={additionAmount ? (additionAmountValidation.valid ? undefined : additionAmountValidation.error) : undefined}
+          />
           <Input label="Note (Optional)" value={additionNote} onChange={e => setAdditionNote(e.target.value)} maxLength={100} />
-          <Button onClick={saveAddition} className="mt-2">Save changes</Button>
+          <Button onClick={saveAddition} disabled={!additionAmountValidation.valid} className="mt-2">Save changes</Button>
         </div>
       </BottomSheet>
 

@@ -9,8 +9,8 @@ import { i18n } from '../lib/i18n'
 import { db, initializeSettings } from '../lib/db'
 import { updateSettings } from '../hooks/useSettings'
 import { useTheme } from '../hooks/useTheme'
-import { getTodayStr } from '../lib/format'
-import { toMinorUnits } from '../lib/format'
+import { getTodayStr, toMinorUnits, formatMoney, isValidDateString } from '../lib/format'
+import { addDays, validateAmount } from '../lib/cycle'
 import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
 
 export function Setup({ onComplete }) {
@@ -27,19 +27,36 @@ export function Setup({ onComplete }) {
   const [income, setIncome] = useState('')
   const [startDate, setStartDate] = useState(getTodayStr())
 
+  const activeCurrency = customCurrency || currency || '₹'
+  const maxFutureDate = addDays(getTodayStr(), 7)
+
+  const dateError = (() => {
+    if (!startDate || !isValidDateString(startDate)) return 'Enter a valid date.'
+    if (startDate < '2000-01-01') return 'Start date cannot be before 2000.'
+    if (startDate > maxFutureDate) return 'Start date cannot be more than 7 days in the future.'
+    return null
+  })()
+
+  const incomeError = (() => {
+    if (!income || income.trim() === '') return null
+    const inc = toMinorUnits(income, activeCurrency)
+    const val = validateAmount(inc, activeCurrency)
+    return val.valid ? null : val.error
+  })()
+
   const handleNext = async () => {
     if (step === 1) {
       if (!isStep1Valid()) return
       setStep(2)
     } else if (step === 2) {
-      const inc = toMinorUnits(income, customCurrency || currency)
-      // Allow inc to be 0 if skipped
+      if (!isStep2Valid()) return
+      const inc = income ? toMinorUnits(income, activeCurrency) : 0
       
       // Save settings
       await initializeSettings()
       await updateSettings({
         name,
-        currency: customCurrency || currency,
+        currency: activeCurrency,
         cycleDay: cycleDay === 'last' ? 'last' : parseInt(cycleDay),
         theme,
         setupComplete: true
@@ -63,7 +80,7 @@ export function Setup({ onComplete }) {
   }
 
   const isStep2Valid = () => {
-    return !!startDate
+    return !dateError && !incomeError
   }
 
   return (
@@ -155,7 +172,10 @@ export function Setup({ onComplete }) {
               <Input 
                 label="Start Date" 
                 type="date"
+                min="2000-01-01"
+                max={maxFutureDate}
                 value={startDate}
+                error={dateError}
                 onChange={e => setStartDate(e.target.value)}
               />
 
@@ -164,6 +184,7 @@ export function Setup({ onComplete }) {
                 type="number"
                 placeholder="0"
                 value={income}
+                error={incomeError}
                 onChange={e => setIncome(e.target.value)}
               />
             </motion.div>

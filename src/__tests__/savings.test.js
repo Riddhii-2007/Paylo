@@ -419,3 +419,80 @@ describe('computeSavings – detailed overspending cases', () => {
     expect(result.overspentAmount).toBe(1500)
   })
 })
+
+describe('computeSavings – future cycle handling & current cycle selection', () => {
+  it('future cycle exists next to the real current one and is not counted', () => {
+    // Opening savings: 5000
+    // Sep cycle (finished): received 5000, spent 2000 -> saved 3000 (totalSaved becomes 8000)
+    // Oct cycle (current, contains today): received 50000, spent 46360 -> delta +3640
+    // Nov cycle (future, scrambled focus input): received 2345678, spent 0
+    const cycles = [
+      buildCycle('sep', '2026-09-24', 5000),
+      buildCycle('oct', '2026-10-24', 50000),
+      buildCycle('nov', '2026-11-24', 2345678),
+    ]
+    const expenses = [
+      buildExpense(1, 2000, '2026-10-01'), // belongs to Sep (Sep 24 to Oct 23)
+      buildExpense(2, 46360, '2026-10-24'), // belongs to Oct
+    ]
+    const today = '2026-10-24'
+    const cycleDay = 24
+
+    const result = computeSavings(cycles, expenses, 5000, cycleDay, today)
+
+    // 1. Total saved only includes opening savings and finished cycles (5000 + 3000 = 8000)
+    expect(result.totalSaved).toBe(8000)
+
+    // 2. Current cycle is Oct (which contains today), not Nov
+    const currentEntry = result.cycleEntries.find(e => e.isCurrentCycle)
+    expect(currentEntry?.id).toBe('oct')
+
+    // 3. Nov cycle is marked future and ignored
+    const novEntry = result.cycleEntries.find(e => e.id === 'nov')
+    expect(novEntry?.isFuture).toBe(true)
+    expect(novEntry?.isCurrentCycle).toBe(false)
+
+    // 4. Projection equals saved + current cycle's (received - spent)
+    // 8000 + (50000 - 46360) = 8000 + 3640 = 11640
+    expect(result.projectedSavings).toBe(8000 + 3640)
+    expect(result.projectedSavings).toBe(11640)
+  })
+
+  it('current cycle in the middle of the list: projection equals saved + current cycle (received - spent)', () => {
+    // C1 (finished): received 10000, spent 7000 -> delta +3000
+    // C2 (finished): received 10000, spent 8000 -> delta +2000
+    // C3 (current, contains today): received 15000, spent 5000 -> delta +10000
+    // C4 (future): received 50000, spent 0 -> future
+    const cycles = [
+      buildCycle('c1', '2026-07-01', 10000),
+      buildCycle('c2', '2026-08-01', 10000),
+      buildCycle('c3', '2026-09-01', 15000),
+      buildCycle('c4', '2026-10-01', 50000),
+    ]
+    const expenses = [
+      buildExpense(1, 7000, '2026-07-10'),
+      buildExpense(2, 8000, '2026-08-10'),
+      buildExpense(3, 5000, '2026-09-15'),
+    ]
+    const today = '2026-09-20'
+    const cycleDay = 1
+
+    const result = computeSavings(cycles, expenses, 1000, cycleDay, today)
+
+    // Saved = opening (1000) + c1 (3000) + c2 (2000) = 6000
+    expect(result.totalSaved).toBe(6000)
+
+    // Current cycle is c3 (in the middle, index 2)
+    const currentEntry = result.cycleEntries.find(e => e.isCurrentCycle)
+    expect(currentEntry?.id).toBe('c3')
+
+    // c4 is future and excluded from both totalSaved and projectedSavings
+    const c4Entry = result.cycleEntries.find(e => e.id === 'c4')
+    expect(c4Entry?.isFuture).toBe(true)
+    expect(c4Entry?.isCurrentCycle).toBe(false)
+
+    // Projection equals saved (6000) + current cycle's (15000 - 5000) = 16000
+    expect(result.projectedSavings).toBe(6000 + 10000)
+    expect(result.projectedSavings).toBe(16000)
+  })
+})
