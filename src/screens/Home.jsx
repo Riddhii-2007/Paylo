@@ -6,13 +6,14 @@ import { PageTransition } from '../components/layout/PageTransition'
 import { i18n } from '../lib/i18n'
 import { 
   findCycleForDate, getDaysLeft, isCycleEnded, getExpensesForCycle, 
-  suggestNextStartDate, validateStartDateEdit, getCycleEndDate, sortCycles,
+  suggestNextStartDate, validateStartDateEdit, sortCycles,
   checkLowBalance
 } from '../lib/cycle'
-import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate } from '../lib/format'
+import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate, getTimeGreeting } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { StatBox } from '../components/ui/StatBox'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { AddExpenseSheet } from '../components/AddExpenseSheet'
@@ -102,7 +103,7 @@ export function Home() {
   const remaining = Math.max(0, rawRemaining)
   const dailyBudget = daysLeft > 0 ? Math.max(0, remaining / daysLeft) : 0
 
-  const isLowBalance = checkLowBalance(rawRemaining, lowBalanceWarning)
+  const isLowBalance = checkLowBalance(remaining, lowBalanceWarning)
 
   // ── Savings ───────────────────────────────────────────────────────────────
   const savings = useMemo(() => {
@@ -120,7 +121,8 @@ export function Home() {
     return Object.entries(totals).sort((a, b) => b[1] - a[1])
   }, [cycleExpenses])
 
-  const greeting = name ? `Good evening, ${name}` : 'Good evening'
+  const greetingWord = getTimeGreeting()
+  const greeting = name ? `${greetingWord}, ${name}` : greetingWord
 
   const [isStartCycleOpen, setIsStartCycleOpen] = useState(false)
   const [newCycleDate, setNewCycleDate] = useState('')
@@ -210,7 +212,7 @@ export function Home() {
   return (
     <PageTransition className="pb-[calc(10rem+env(safe-area-inset-bottom))]">
       {/* Low Balance Banner */}
-      {isLowBalance && rawRemaining > 0 && !ended && (
+      {isLowBalance && !ended && (
         <div className="bg-terracotta text-cream px-6 py-2 text-sm font-medium text-center">
           Running low on funds for this cycle.
         </div>
@@ -429,11 +431,3 @@ export function Home() {
   )
 }
 
-function StatBox({ label, value }) {
-  return (
-    <div className="bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/10 rounded-2xl p-4 flex flex-col gap-1">
-      <span className="text-xs text-navy/60 dark:text-silver-muted">{label}</span>
-      <span className="font-serif text-xl text-navy dark:text-cream">{value}</span>
-    </div>
-  )
-}
