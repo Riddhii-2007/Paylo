@@ -2,8 +2,11 @@ import { useState, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, AnimatePresence } from 'motion/react'
 import { db } from '../lib/db'
-import { sortCycles, getCycleEndDate, getExpensesForCycle, validateStartDateEdit, findCycleForDate } from '../lib/cycle'
-import { formatMoney, formatDate, getTodayStr, toMinorUnits, toMajorUnits, isValidDateString } from '../lib/format'
+import { 
+  sortCycles, getCycleEndDate, getExpensesForCycle, validateStartDateEdit, findCycleForDate,
+  getCycleEditAllowedRange, findInvalidCycles, repairInvalidCycleDate, getOneYearFromToday
+} from '../lib/cycle'
+import { formatMoney, formatDate, getTodayStr, toMinorUnits, toMajorUnits } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { PageTransition } from '../components/layout/PageTransition'
 import { Button } from '../components/ui/Button'
@@ -93,7 +96,27 @@ export function Cycles() {
     })
   }, [sortedCycles, allExpenses, cycleDay, today])
 
+  // Invalid cycle detection
+  const invalidCycles = useMemo(() => findInvalidCycles(allCycles || [], today), [allCycles, today])
+
+  const handleRepairAllInvalidCycles = async () => {
+    for (const c of invalidCycles) {
+      const repaired = repairInvalidCycleDate(c, allCycles, cycleDay, today)
+      await db.cycles.update(c.id, { startDate: repaired })
+    }
+  }
+
   // --- Cycle Editing ---
+  const editRange = useMemo(() => {
+    if (!editingCycle || !sortedCycles.length) return { min: '2000-01-01', max: getOneYearFromToday(today) }
+    return getCycleEditAllowedRange(editingCycle.index, sortedCycles, today)
+  }, [editingCycle, sortedCycles, today])
+
+  const editValidation = useMemo(() => {
+    if (!editingCycle || !sortedCycles.length) return { valid: false, error: 'No active cycle' }
+    return validateStartDateEdit(editDate, editingCycle.index, sortedCycles, cycleDay, editingCycle.expenses || [], today)
+  }, [editDate, editingCycle, sortedCycles, cycleDay, today])
+
   const handleEditCycleInit = (e, cycle) => {
     e.stopPropagation()
     setEditingCycle(cycle)
@@ -103,8 +126,8 @@ export function Cycles() {
   }
 
   const submitCycleEdit = () => {
-    const val = validateStartDateEdit(editDate, editingCycle.index, sortedCycles, cycleDay, editingCycle.expenses)
-    if (!val.valid) { alert('Invalid date: overlaps with another cycle.'); return }
+    if (!editValidation.valid) return
+    const val = editValidation
     
     const inc = toMinorUnits(editIncome, currency)
     const updates = { startDate: editDate, income: inc }
@@ -194,6 +217,26 @@ export function Cycles() {
       </header>
 
       <div className="flex-1 space-y-4">
+        {invalidCycles.length > 0 && (
+          <div className="bg-terracotta/10 border border-terracotta/30 rounded-2xl p-4 mb-4 text-navy dark:text-cream">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-serif text-lg text-terracotta font-medium mb-1">
+                  ⚠️ Invalid cycle detected
+                </h3>
+                <p className="text-sm text-navy/80 dark:text-silver-muted">
+                  {invalidCycles.length === 1
+                    ? `Found a cycle with invalid start date "${invalidCycles[0].startDate}".`
+                    : `Found ${invalidCycles.length} cycles with invalid start dates.`}
+                </p>
+              </div>
+              <Button onClick={handleRepairAllInvalidCycles} className="shrink-0 text-sm py-2 px-3">
+                Repair now
+              </Button>
+            </div>
+          </div>
+        )}
+
         {cyclesData.length === 0 ? (
           <div className="bg-cream-surface dark:bg-navy-surface rounded-2xl p-8 text-center border border-navy/5 dark:border-gold/10">
             <p className="text-navy/60 dark:text-silver-muted">No cycles yet.</p>
@@ -359,17 +402,19 @@ export function Cycles() {
           <Input 
             label="Start Date" 
             type="date" 
+            min={editRange.min}
+            max={editRange.max}
             value={editDate} 
             onChange={e => setEditDate(e.target.value)} 
-            error={!isValidDateString(editDate) ? 'Enter a valid date' : undefined}
+            error={editValidation.valid ? undefined : editValidation.error}
           />
           <Input label="Base Income" type="number" value={editIncome} onChange={e => setEditIncome(e.target.value)} />
           <div>
-            <Button onClick={submitCycleEdit} disabled={!isValidDateString(editDate) || !editIncome} className="w-full mt-2">
+            <Button onClick={submitCycleEdit} disabled={!editValidation.valid || !editIncome || Number(editIncome) <= 0} className="w-full mt-2">
               Save changes
             </Button>
-            {!isValidDateString(editDate) && (
-              <p className="text-xs text-terracotta text-center mt-2">Enter a valid date to save changes.</p>
+            {!editValidation.valid && (
+              <p className="text-xs text-terracotta text-center mt-2">{editValidation.error}</p>
             )}
           </div>
         </div>

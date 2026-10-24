@@ -64,6 +64,14 @@ export function Settings() {
   const [pendingRestoreFile, setPendingRestoreFile] = useState(null)
   const restoreFileInputRef = useRef(null)
 
+  // In-app feedback and inline error states (replacing alert())
+  const [feedback, setFeedback] = useState(null) // { type: 'success' | 'error', message: string } | null
+  const [catError, setCatError] = useState(null)
+  const [savingsError, setSavingsError] = useState(null)
+  const [pinError, setPinError] = useState(null)
+  const [backupError, setBackupError] = useState(null)
+  const [restoreError, setRestoreError] = useState(null)
+
   useEffect(() => {
     if (settingsArr) {
       const catSetting = settingsArr.find(s => s.key === 'categories')
@@ -106,7 +114,7 @@ export function Settings() {
   const handleSaveCycleDay = async (newValue) => {
     const val = newValue === 'last' ? 'last' : parseInt(newValue)
     if (val !== 'last' && (isNaN(val) || val < 1 || val > 31)) {
-      alert('Pay day must be 1–31 or "Last day".')
+      setFeedback({ type: 'error', message: 'Pay day must be 1–31 or "Last day".' })
       return
     }
     await db.settings.put({ key: 'cycleDay', value: val })
@@ -114,14 +122,15 @@ export function Settings() {
 
   // ---------- Categories ----------
   const handleOpenAdd = () => {
-    setEditTarget(null); setEditName(''); setEditEmoji('✨'); setIsEditOpen(true)
+    setEditTarget(null); setEditName(''); setEditEmoji('✨'); setCatError(null); setIsEditOpen(true)
   }
   const handleOpenEdit = (cat) => {
     if (cat.id === 'other') return
-    setEditTarget(cat); setEditName(cat.name); setEditEmoji(cat.emoji); setIsEditOpen(true)
+    setEditTarget(cat); setEditName(cat.name); setEditEmoji(cat.emoji); setCatError(null); setIsEditOpen(true)
   }
   const handleSaveCategory = async () => {
     try {
+      setCatError(null)
       if (editTarget) {
         const newCats = renameCategory(editTarget.id, editName, editEmoji, categories)
         await db.settings.put({ key: 'categories', value: newCats })
@@ -132,7 +141,7 @@ export function Settings() {
         }
       }
       setIsEditOpen(false)
-    } catch (e) { alert(e.message) }
+    } catch (e) { setCatError(e.message) }
   }
   const handleDeleteRequest = (cat) => {
     if (cat.id === 'other') return
@@ -171,14 +180,24 @@ export function Settings() {
       return
     }
     const val = parseFloat(openingSavingsStr)
-    if (isNaN(val) || val < 0) { alert('Opening savings must be a non-negative number.'); return }
+    if (isNaN(val) || val < 0) { 
+      setSavingsError('Opening savings must be a non-negative number.')
+      return 
+    }
     await db.settings.put({ key: 'openingSavings', value: Math.round(val * 100) })
   }
 
   // ---------- PIN ----------
   const handleSavePin = async () => {
-    if (!validatePin(newPin)) { alert('PIN must be exactly 4 digits.'); return }
-    if (newPin !== confirmPin) { alert('PINs do not match.'); return }
+    setPinError(null)
+    if (!validatePin(newPin)) { 
+      setPinError('PIN must be exactly 4 digits.')
+      return 
+    }
+    if (newPin !== confirmPin) { 
+      setPinError('PINs do not match.')
+      return 
+    }
     // Store a PBKDF2-hashed record — never the plain PIN
     const record = await createPinRecord(newPin)
     await db.settings.put({ key: 'pin', value: record })
@@ -191,9 +210,16 @@ export function Settings() {
 
   // ---------- Backup ----------
   const handleDoBackup = async () => {
+    setBackupError(null)
     if (backupWithPassword) {
-      if (!backupPass) { alert('Please enter a password.'); return }
-      if (backupPass !== backupConfirmPass) { alert('Passwords do not match.'); return }
+      if (!backupPass) { 
+        setBackupError('Please enter a password.')
+        return 
+      }
+      if (backupPass !== backupConfirmPass) { 
+        setBackupError('Passwords do not match.')
+        return 
+      }
       try {
         const blob = await exportEncryptedJson(backupPass)
         const url = URL.createObjectURL(blob)
@@ -205,7 +231,8 @@ export function Settings() {
         setBackupPass('')
         setBackupConfirmPass('')
         setIsBackupOpen(false)
-      } catch (e) { alert('Encryption failed: ' + e.message) }
+        setFeedback({ type: 'success', message: 'Encrypted backup downloaded.' })
+      } catch (e) { setBackupError('Encryption failed: ' + e.message) }
     } else {
       try {
         const blob = await exportJson()
@@ -216,7 +243,8 @@ export function Settings() {
         a.click()
         URL.revokeObjectURL(url)
         setIsBackupOpen(false)
-      } catch (e) { alert('Export failed: ' + e.message) }
+        setFeedback({ type: 'success', message: 'Unencrypted backup downloaded.' })
+      } catch (e) { setBackupError('Export failed: ' + e.message) }
     }
   }
 
@@ -227,14 +255,15 @@ export function Settings() {
       const detection = await detectBackupType(file)
       if (detection.type === 'plain') {
         await importJson(file)
-        alert('Backup restored successfully!')
+        setFeedback({ type: 'success', message: 'Backup restored successfully!' })
       } else if (detection.type === 'encrypted') {
         setPendingRestoreFile(file)
         setRestorePassword('')
+        setRestoreError(null)
         setIsRestorePasswordOpen(true)
       }
     } catch (err) {
-      alert('Restore failed: ' + err.message)
+      setFeedback({ type: 'error', message: 'Restore failed: ' + err.message })
     } finally {
       e.target.value = ''
     }
@@ -242,17 +271,18 @@ export function Settings() {
 
   const handleConfirmRestorePassword = async () => {
     if (!restorePassword) {
-      alert('Please enter your backup password.')
+      setRestoreError('Please enter your backup password.')
       return
     }
     try {
       await importEncryptedJson(pendingRestoreFile, restorePassword)
-      alert('Encrypted backup restored successfully!')
+      setFeedback({ type: 'success', message: 'Encrypted backup restored successfully!' })
       setIsRestorePasswordOpen(false)
       setPendingRestoreFile(null)
       setRestorePassword('')
+      setRestoreError(null)
     } catch (err) {
-      alert('Restore failed: ' + err.message)
+      setRestoreError('Restore failed: ' + err.message)
     }
   }
 
@@ -265,7 +295,8 @@ export function Settings() {
       a.download = `paylo-expenses-${getTodayStr()}.csv`
       a.click()
       URL.revokeObjectURL(url)
-    } catch (e) { alert('Export failed: ' + e.message) }
+      setFeedback({ type: 'success', message: 'Spreadsheet exported.' })
+    } catch (e) { setFeedback({ type: 'error', message: 'Export failed: ' + e.message }) }
   }
 
   const handleConfirmReset = async () => {
@@ -284,6 +315,19 @@ export function Settings() {
       <header className="mb-8">
         <h1 className="font-serif text-3xl text-navy dark:text-gold mb-2">Settings</h1>
       </header>
+
+      {feedback && (
+        <div 
+          className={`p-4 rounded-xl mb-6 text-sm flex items-center justify-between ${
+            feedback.type === 'error' 
+              ? 'bg-terracotta/10 border border-terracotta/20 text-terracotta' 
+              : 'bg-teal/10 border border-teal/20 text-teal dark:text-cream'
+          }`}
+        >
+          <span>{feedback.message}</span>
+          <button onClick={() => setFeedback(null)} className="text-xs font-bold px-2 py-1 hover:opacity-75" aria-label="Dismiss feedback">✕</button>
+        </div>
+      )}
 
       {/* ── Profile ─────────────────────────────────── */}
       <section className="mb-10">
@@ -446,7 +490,14 @@ export function Settings() {
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">
               Money you had saved <span className="font-medium">before</span> you started using this app. Added to your savings total from the beginning.
             </p>
-            <Input type="number" placeholder="0" value={openingSavingsStr} onChange={e => setOpeningSavingsStr(e.target.value)} onBlur={handleSaveOpeningSavings} />
+            <Input 
+              type="number" 
+              placeholder="0" 
+              value={openingSavingsStr} 
+              onChange={e => { setOpeningSavingsStr(e.target.value); setSavingsError(null) }} 
+              onBlur={handleSaveOpeningSavings} 
+              error={savingsError}
+            />
           </div>
 
 
@@ -484,7 +535,7 @@ export function Settings() {
                     maxLength={4}
                     placeholder="New PIN"
                     value={newPin}
-                    onChange={e => setNewPin(e.target.value)}
+                    onChange={e => { setNewPin(e.target.value); setPinError(null) }}
                   />
                   <Input
                     type="password"
@@ -493,11 +544,12 @@ export function Settings() {
                     maxLength={4}
                     placeholder="Confirm"
                     value={confirmPin}
-                    onChange={e => setConfirmPin(e.target.value)}
+                    onChange={e => { setConfirmPin(e.target.value); setPinError(null) }}
                   />
                 </div>
+                {pinError && <p className="text-xs text-terracotta">{pinError}</p>}
                 <div className="flex gap-2">
-                  <Button variant="ghost" onClick={() => { setPinMode('view'); setNewPin(''); setConfirmPin('') }}>Cancel</Button>
+                  <Button variant="ghost" onClick={() => { setPinMode('view'); setNewPin(''); setConfirmPin(''); setPinError(null) }}>Cancel</Button>
                   <Button onClick={handleSavePin} disabled={newPin.length !== 4 || confirmPin.length !== 4}>Save PIN</Button>
                 </div>
               </div>
@@ -529,12 +581,13 @@ export function Settings() {
         <div className="flex flex-col gap-6">
           <div className="flex gap-2">
             <div className="w-20">
-              <Input label="Emoji" value={editEmoji} onChange={e => setEditEmoji(e.target.value)} maxLength={2} />
+              <Input label="Emoji" value={editEmoji} onChange={e => { setEditEmoji(e.target.value); setCatError(null) }} maxLength={2} />
             </div>
             <div className="flex-1">
-              <Input label="Name" value={editName} onChange={e => setEditName(e.target.value)} maxLength={24} />
+              <Input label="Name" value={editName} onChange={e => { setEditName(e.target.value); setCatError(null) }} maxLength={24} />
             </div>
           </div>
+          {catError && <p className="text-xs text-terracotta">{catError}</p>}
           <Button onClick={handleSaveCategory}>Save Category</Button>
         </div>
       </BottomSheet>
@@ -565,7 +618,7 @@ export function Settings() {
       </BottomSheet>
 
       {/* Back up sheet */}
-      <BottomSheet isOpen={isBackupOpen} onClose={() => { setIsBackupOpen(false); setBackupPass(''); setBackupConfirmPass('') }}>
+      <BottomSheet isOpen={isBackupOpen} onClose={() => { setIsBackupOpen(false); setBackupPass(''); setBackupConfirmPass(''); setBackupError(null) }}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-2">Back up</h3>
         <p className="text-xs text-navy/60 dark:text-silver-muted mb-4">Export all your cycles, expenses, and settings to a file.</p>
         
@@ -590,15 +643,16 @@ export function Settings() {
                 type="password"
                 placeholder="Enter a strong password"
                 value={backupPass}
-                onChange={e => setBackupPass(e.target.value)}
+                onChange={e => { setBackupPass(e.target.value); setBackupError(null) }}
               />
               <Input
                 label="Confirm Password"
                 type="password"
                 placeholder="Repeat password"
                 value={backupConfirmPass}
-                onChange={e => setBackupConfirmPass(e.target.value)}
+                onChange={e => { setBackupConfirmPass(e.target.value); setBackupError(null) }}
               />
+              {backupError && <p className="text-xs text-terracotta">{backupError}</p>}
               <Button
                 disabled={!backupPass || backupPass !== backupConfirmPass}
                 onClick={handleDoBackup}
@@ -611,6 +665,7 @@ export function Settings() {
               <p className="text-xs text-navy/60 dark:text-silver-muted">
                 Creates an unencrypted JSON backup. Anyone with this file can view your transactions.
               </p>
+              {backupError && <p className="text-xs text-terracotta">{backupError}</p>}
               <Button onClick={handleDoBackup}>
                 Download Backup
               </Button>
@@ -620,7 +675,7 @@ export function Settings() {
       </BottomSheet>
 
       {/* Restore Password sheet */}
-      <BottomSheet isOpen={isRestorePasswordOpen} onClose={() => { setIsRestorePasswordOpen(false); setPendingRestoreFile(null); setRestorePassword('') }}>
+      <BottomSheet isOpen={isRestorePasswordOpen} onClose={() => { setIsRestorePasswordOpen(false); setPendingRestoreFile(null); setRestorePassword(''); setRestoreError(null) }}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-2">Enter Backup Password</h3>
         <p className="text-xs text-navy/60 dark:text-silver-muted mb-4">
           This backup is encrypted with AES-256-GCM. Enter the password you used during export to decrypt and restore it.
@@ -631,8 +686,9 @@ export function Settings() {
             type="password"
             placeholder="Password used during export"
             value={restorePassword}
-            onChange={e => setRestorePassword(e.target.value)}
+            onChange={e => { setRestorePassword(e.target.value); setRestoreError(null) }}
           />
+          {restoreError && <p className="text-xs text-terracotta">{restoreError}</p>}
           <Button
             disabled={!restorePassword}
             onClick={handleConfirmRestorePassword}

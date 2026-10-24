@@ -7,9 +7,9 @@ import { i18n } from '../lib/i18n'
 import { 
   findCycleForDate, getDaysLeft, isCycleEnded, getExpensesForCycle, 
   suggestNextStartDate, validateStartDateEdit, sortCycles,
-  checkLowBalance
+  checkLowBalance, getCycleEditAllowedRange, addDays, getOneYearFromToday
 } from '../lib/cycle'
-import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate, getTimeGreeting, isValidDateString } from '../lib/format'
+import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate, getTimeGreeting, isValidDateString, formatDate } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -173,6 +173,37 @@ export function Home() {
     setExtraNote('')
   }
 
+  const editRange = useMemo(() => {
+    if (cycleIndex === -1 || !sortedCycles.length) return { min: '2000-01-01', max: getOneYearFromToday(today) }
+    return getCycleEditAllowedRange(cycleIndex, sortedCycles, today)
+  }, [cycleIndex, sortedCycles, today])
+
+  const editValidation = useMemo(() => {
+    if (cycleIndex === -1 || !sortedCycles.length) return { valid: false, error: 'No active cycle' }
+    return validateStartDateEdit(editDate, cycleIndex, sortedCycles, cycleDay, cycleExpenses, today)
+  }, [editDate, cycleIndex, sortedCycles, cycleDay, cycleExpenses, today])
+
+  const newCycleRange = useMemo(() => {
+    const latest = sortedCycles.length > 0 ? sortedCycles[sortedCycles.length - 1] : null
+    const min = latest ? addDays(latest.startDate, 1) : '2000-01-01'
+    const max = getOneYearFromToday(today)
+    return { min, max, latest }
+  }, [sortedCycles, today])
+
+  const newCycleValidation = useMemo(() => {
+    if (!isValidDateString(newCycleDate)) return { valid: false, error: 'Enter a valid date.' }
+    if (newCycleDate < '2000-01-01') return { valid: false, error: 'Start date cannot be before 2000.' }
+    const max = getOneYearFromToday(today)
+    if (newCycleDate > max) return { valid: false, error: 'Start date cannot be more than a year in the future.' }
+    if (newCycleRange.latest && newCycleDate <= newCycleRange.latest.startDate) {
+      return { 
+        valid: false, 
+        error: `Start date must be after ${formatDate(newCycleRange.latest.startDate)} (the current cycle starts on ${formatDate(newCycleRange.latest.startDate)}).` 
+      }
+    }
+    return { valid: true, error: null }
+  }, [newCycleDate, newCycleRange, today])
+
   const handleEditCycleInit = () => {
     if (!currentCycle) return
     setEditDate(currentCycle.startDate)
@@ -181,8 +212,8 @@ export function Home() {
   }
 
   const submitCycleEdit = () => {
-    const val = validateStartDateEdit(editDate, cycleIndex, sortedCycles, cycleDay, cycleExpenses)
-    if (!val.valid) { alert('Invalid date: overlaps with another cycle.'); return }
+    if (!editValidation.valid) return
+    const val = editValidation
     
     if ((val.orphanedExtras && val.orphanedExtras.length > 0) || (val.orphanedExpenses && val.orphanedExpenses.length > 0)) {
       setConfirmEdit({ date: editDate, orphaned: val.orphanedExtras || [], orphanedExp: val.orphanedExpenses || [] })
@@ -410,17 +441,19 @@ export function Home() {
           <Input 
             label="Start Date" 
             type="date" 
+            min={editRange.min}
+            max={editRange.max}
             value={editDate} 
             onChange={e => setEditDate(e.target.value)} 
-            error={!isValidDateString(editDate) ? 'Enter a valid date' : undefined}
+            error={editValidation.valid ? undefined : editValidation.error}
           />
           <Input label="Total Amount Received" type="number" value={editIncome} onChange={e => setEditIncome(e.target.value)} />
           <div>
-            <Button onClick={submitCycleEdit} disabled={!isValidDateString(editDate) || !editIncome} className="w-full mt-2">
+            <Button onClick={submitCycleEdit} disabled={!editValidation.valid || !editIncome || Number(editIncome) <= 0} className="w-full mt-2">
               Save changes
             </Button>
-            {!isValidDateString(editDate) && (
-              <p className="text-xs text-terracotta text-center mt-2">Enter a valid date to save changes.</p>
+            {!editValidation.valid && (
+              <p className="text-xs text-terracotta text-center mt-2">{editValidation.error}</p>
             )}
           </div>
         </div>
@@ -433,9 +466,11 @@ export function Home() {
           <Input 
             label="Start Date" 
             type="date" 
+            min={newCycleRange.min}
+            max={newCycleRange.max}
             value={newCycleDate} 
             onChange={e => setNewCycleDate(e.target.value)} 
-            error={!isValidDateString(newCycleDate) ? 'Enter a valid date' : undefined}
+            error={newCycleValidation.valid ? undefined : newCycleValidation.error}
           />
           <div>
             <Input label="Amount Received" type="number" placeholder="0" value={newCycleIncome} onChange={e => setNewCycleIncome(e.target.value)} />
@@ -451,15 +486,15 @@ export function Home() {
           <div>
             <Button 
               onClick={handleStartNewCycle} 
-              disabled={!isValidDateString(newCycleDate) || !newCycleIncome || Number(newCycleIncome) <= 0} 
+              disabled={!newCycleValidation.valid || !newCycleIncome || Number(newCycleIncome) <= 0} 
               className="w-full mt-2"
             >
               Start Cycle
             </Button>
-            {!isValidDateString(newCycleDate) && (
-              <p className="text-xs text-terracotta text-center mt-2">Enter a valid date to start the cycle.</p>
+            {!newCycleValidation.valid && (
+              <p className="text-xs text-terracotta text-center mt-2">{newCycleValidation.error}</p>
             )}
-            {isValidDateString(newCycleDate) && (!newCycleIncome || Number(newCycleIncome) <= 0) && (
+            {newCycleValidation.valid && (!newCycleIncome || Number(newCycleIncome) <= 0) && (
               <p className="text-xs text-navy/60 dark:text-silver-muted text-center mt-2">Enter the amount received to start the cycle.</p>
             )}
           </div>

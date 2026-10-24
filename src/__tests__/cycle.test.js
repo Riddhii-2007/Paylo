@@ -7,7 +7,10 @@ import {
   getExpensesForCycle,
   suggestNextStartDate,
   validateStartDateEdit,
-  checkLowBalance
+  checkLowBalance,
+  getCycleEditAllowedRange,
+  findInvalidCycles,
+  repairInvalidCycleDate
 } from '../lib/cycle'
 
 describe('Cycle Logic', () => {
@@ -182,46 +185,183 @@ describe('Cycle Logic', () => {
     })
   })
 
-  describe('E. Validation (validateStartDateEdit)', () => {
+  describe('E. Allowed range calculation (getCycleEditAllowedRange)', () => {
+    const today = '2026-10-24'
     const cycles = [
-      { id: 1, startDate: '2026-09-22' },
-      { id: 2, startDate: '2026-10-20' },
-      { id: 3, startDate: '2026-11-18' }
+      { id: 1, startDate: '2026-08-22' },
+      { id: 2, startDate: '2026-09-22' },
+      { id: 3, startDate: '2026-10-22' }
     ]
 
-    it('Overlap prevention: rejects if new date is before prev cycle start', () => {
-      expect(validateStartDateEdit('2026-09-20', 1, cycles, 22).valid).toBe(false)
+    it('middle cycle: min is day after prev, max is day before next', () => {
+      const range = getCycleEditAllowedRange(1, cycles, today)
+      expect(range.min).toBe('2026-08-23')
+      expect(range.max).toBe('2026-10-21')
+      expect(range.prev.startDate).toBe('2026-08-22')
+      expect(range.next.startDate).toBe('2026-10-22')
     })
 
-    it('Overlap prevention: rejects if new date equals or is after next cycle start', () => {
-      expect(validateStartDateEdit('2026-11-18', 1, cycles, 22).valid).toBe(false)
-      expect(validateStartDateEdit('2026-11-19', 1, cycles, 22).valid).toBe(false)
+    it('first cycle: min is 2000-01-01, max is day before next', () => {
+      const range = getCycleEditAllowedRange(0, cycles, today)
+      expect(range.min).toBe('2000-01-01')
+      expect(range.max).toBe('2026-09-21')
+      expect(range.prev).toBeNull()
+      expect(range.next.startDate).toBe('2026-09-22')
     })
 
-    it('Allows valid edits between bounds', () => {
-      expect(validateStartDateEdit('2026-10-15', 1, cycles, 22).valid).toBe(true)
+    it('latest cycle: min is day after prev, max is one year from today', () => {
+      const range = getCycleEditAllowedRange(2, cycles, today)
+      expect(range.min).toBe('2026-09-23')
+      expect(range.max).toBe('2027-10-24')
+      expect(range.prev.startDate).toBe('2026-09-22')
+      expect(range.next).toBeNull()
     })
 
-    it('Single cycle edge case: allows any edit if it is the only cycle', () => {
-      const singleCycle = [{ id: 1, startDate: '2026-09-22' }]
-      expect(validateStartDateEdit('2025-01-01', 0, singleCycle, 22).valid).toBe(true)
-      expect(validateStartDateEdit('2027-01-01', 0, singleCycle, 22).valid).toBe(true)
+    it('single cycle: min is 2000-01-01, max is one year from today', () => {
+      const single = [{ id: 1, startDate: '2026-10-22' }]
+      const range = getCycleEditAllowedRange(0, single, today)
+      expect(range.min).toBe('2000-01-01')
+      expect(range.max).toBe('2027-10-24')
+      expect(range.prev).toBeNull()
+      expect(range.next).toBeNull()
     })
-    
-    it('Identifies extras that would fall outside the cycle', () => {
+  })
+
+  describe('F. Validation messages (validateStartDateEdit)', () => {
+    const today = '2026-10-24'
+    const cycles = [
+      { id: 1, startDate: '2026-09-22' },
+      { id: 2, startDate: '2026-10-22' }
+    ]
+
+    it('shows "Enter a valid date." for empty or incomplete dates', () => {
+      const r1 = validateStartDateEdit('', 0, cycles, 22, today)
+      expect(r1.valid).toBe(false)
+      expect(r1.error).toBe('Enter a valid date.')
+
+      const r2 = validateStartDateEdit('dd-05-0005', 0, cycles, 22, today)
+      expect(r2.valid).toBe(false)
+      expect(r2.error).toBe('Enter a valid date.')
+
+      const r3 = validateStartDateEdit('2026-05-', 0, cycles, 22, today)
+      expect(r3.valid).toBe(false)
+      expect(r3.error).toBe('Enter a valid date.')
+    })
+
+    it('shows "Start date cannot be before 2000." for years before 2000', () => {
+      const r1 = validateStartDateEdit('0005-05-01', 0, cycles, 22, today)
+      expect(r1.valid).toBe(false)
+      expect(r1.error).toBe('Start date cannot be before 2000.')
+
+      const r2 = validateStartDateEdit('1999-12-31', 0, cycles, 22, today)
+      expect(r2.valid).toBe(false)
+      expect(r2.error).toBe('Start date cannot be before 2000.')
+    })
+
+    it('shows "Start date cannot be more than a year in the future." when past +1 year', () => {
+      const r1 = validateStartDateEdit('2027-10-25', 1, cycles, 22, today)
+      expect(r1.valid).toBe(false)
+      expect(r1.error).toBe('Start date cannot be more than a year in the future.')
+    })
+
+    it('names neighbouring next cycle and allowed range when overlapping next', () => {
+      // Editing cycle 0 (Sep 22). Next cycle is Oct 22.
+      // Date on or after Oct 22:
+      const r = validateStartDateEdit('2026-10-22', 0, cycles, 22, today)
+      expect(r.valid).toBe(false)
+      expect(r.error).toBe('Start date must be before Oct 22 (the next cycle starts on Oct 22).')
+    })
+
+    it('names neighbouring prev cycle and allowed range when overlapping prev', () => {
+      // Editing cycle 1 (Oct 22). Prev cycle is Sep 22.
+      // Date on or before Sep 22:
+      const r = validateStartDateEdit('2026-09-22', 1, cycles, 22, today)
+      expect(r.valid).toBe(false)
+      expect(r.error).toBe('Start date must be after Sep 22 (the previous cycle starts on Sep 22).')
+    })
+
+    it('names both neighbours when middle cycle overlaps next or prev', () => {
+      const threeCycles = [
+        { id: 1, startDate: '2026-09-22' },
+        { id: 2, startDate: '2026-10-10' },
+        { id: 3, startDate: '2026-10-22' }
+      ]
+      // Overlap next
+      const rNext = validateStartDateEdit('2026-10-22', 1, threeCycles, 22, today)
+      expect(rNext.valid).toBe(false)
+      expect(rNext.error).toBe('Start date must be after Sep 22 and before Oct 22 (the next cycle starts on Oct 22).')
+
+      // Overlap prev
+      const rPrev = validateStartDateEdit('2026-09-20', 1, threeCycles, 22, today)
+      expect(rPrev.valid).toBe(false)
+      expect(rPrev.error).toBe('Start date must be after Sep 22 and before Oct 22 (the previous cycle starts on Sep 22).')
+    })
+
+    it('allows valid dates within the allowed range', () => {
+      const r = validateStartDateEdit('2026-10-05', 0, cycles, 22, today)
+      expect(r.valid).toBe(true)
+      expect(r.error).toBeNull()
+    })
+
+    it('identifies orphaned extras when start date moves forward', () => {
       const cyclesWithExtras = [
         { id: 1, startDate: '2026-09-22', extras: [{ date: '2026-09-25' }, { date: '2026-10-18' }] },
-        { id: 2, startDate: '2026-10-20' }
+        { id: 2, startDate: '2026-10-22' }
       ]
-      // Edit cycle 1 start date to 2026-09-30 -> the 09-25 extra is orphaned
-      const res = validateStartDateEdit('2026-09-30', 0, cyclesWithExtras, 22)
+      const res = validateStartDateEdit('2026-09-30', 0, cyclesWithExtras, 22, today)
       expect(res.valid).toBe(true)
       expect(res.orphanedExtras.length).toBe(1)
       expect(res.orphanedExtras[0].date).toBe('2026-09-25')
     })
+
+    it('identifies orphaned expenses when start date moves forward', () => {
+      const allExpenses = [
+        { id: 10, date: '2026-09-23', amount: 500, categoryId: 'food' },
+        { id: 11, date: '2026-10-01', amount: 1500, categoryId: 'food' }
+      ]
+      const res = validateStartDateEdit('2026-09-25', 0, cycles, 22, allExpenses, today)
+      expect(res.valid).toBe(true)
+      expect(res.orphanedExpenses.length).toBe(1)
+      expect(res.orphanedExpenses[0].id).toBe(10)
+    })
+  })
+
+  describe('G. Invalid cycles detection and repair (findInvalidCycles, repairInvalidCycleDate)', () => {
+    const today = '2026-10-24'
+
+    it('detects cycles with year < 2000, > 1 year in future, or invalid format', () => {
+      const badCycles = [
+        { id: 1, startDate: '0005-05-01' },
+        { id: 2, startDate: '1998-11-20' },
+        { id: 3, startDate: '2026-09-22' },
+        { id: 4, startDate: '2029-01-01' },
+        { id: 5, startDate: 'invalid-date' }
+      ]
+      const invalid = findInvalidCycles(badCycles, today)
+      expect(invalid.map(c => c.id)).toEqual([1, 2, 4, 5])
+    })
+
+    it('repairs invalid cycle date based on neighbouring cycles or cycleDay', () => {
+      const badCycles = [
+        { id: 1, startDate: '2026-08-22' },
+        { id: 2, startDate: '0005-05-01' },
+        { id: 3, startDate: '2026-10-22' }
+      ]
+      const repaired = repairInvalidCycleDate(badCycles[1], badCycles, 22, today)
+      expect(repaired).toBe('2026-09-22')
+    })
+
+    it('repairs first invalid cycle using next cycle', () => {
+      const badCycles = [
+        { id: 1, startDate: '0005-05-01' },
+        { id: 2, startDate: '2026-10-22' }
+      ]
+      const repaired = repairInvalidCycleDate(badCycles[0], badCycles, 22, today)
+      expect(repaired).toBe('2026-09-22')
+    })
   })
   
-  describe('F. suggestNextStartDate', () => {
+  describe('H. suggestNextStartDate', () => {
     it('Suggests current month if cycle day not passed', () => {
       expect(suggestNextStartDate(22, '2026-10-04')).toBe('2026-10-22')
     })
@@ -230,7 +370,7 @@ describe('Cycle Logic', () => {
       expect(suggestNextStartDate(22, '2026-10-23')).toBe('2026-11-22')
     })
   })
-  describe('G. Pay day clamping and "last" month options', () => {
+  describe('I. Pay day clamping and "last" month options', () => {
     it('Clamps 31 to 30 in short months (April)', () => {
       // suggestNextStartDate(31, '2026-04-01') -> April has 30 days
       expect(suggestNextStartDate(31, '2026-04-01')).toBe('2026-04-30')
