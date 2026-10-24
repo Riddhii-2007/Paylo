@@ -60,4 +60,37 @@ describe('Format Logic', () => {
       expect(formatMoney(999999999999, 'INR')).toBe('₹9,99,99,99,999.99')
     })
   })
+
+  describe('formatDate and parseLocalDate', () => {
+    it('handles ISO timestamp strings without throwing Invalid time value', async () => {
+      const { formatDate, parseLocalDate } = await import('../lib/format')
+      const isoStr = '2026-10-24T10:18:31.000Z'
+      expect(() => parseLocalDate(isoStr)).not.toThrow()
+      expect(() => formatDate(isoStr)).not.toThrow()
+      expect(formatDate(isoStr)).toContain('Oct 24')
+    })
+
+    it('handles standard YYYY-MM-DD date strings', async () => {
+      const { formatDate } = await import('../lib/format')
+      expect(formatDate('2026-05-15')).toContain('May 15')
+    })
+  })
+
+  describe('getTimeGreeting', () => {
+    it('returns appropriate greeting depending on the hour', async () => {
+      const { getTimeGreeting } = await import('../lib/format')
+      // Morning: < 12
+      const morningDate = new Date(2026, 9, 24, 9, 0, 0)
+      expect(getTimeGreeting(morningDate)).toBe('Good morning')
+
+      // Afternoon: 12 <= hour < 17
+      const afternoonDate = new Date(2026, 9, 24, 14, 0, 0)
+      expect(getTimeGreeting(afternoonDate)).toBe('Good afternoon')
+
+      // Evening: >= 17
+      const eveningDate = new Date(2026, 9, 24, 19, 0, 0)
+      expect(getTimeGreeting(eveningDate)).toBe('Good evening')
+    })
+  })
 })
+

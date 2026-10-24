@@ -87,8 +87,21 @@ export function formatMoneyNoDecimals(minorUnits, currencyCode = 'INR') {
 
 export function parseLocalDate(dateStr) {
   if (!dateStr) return new Date()
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d)
+  if (dateStr instanceof Date) return dateStr
+  const datePart = String(dateStr).split(/[T ]/)[0]
+  const parts = datePart.split('-').map(Number)
+  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    return new Date(parts[0], parts[1] - 1, parts[2])
+  }
+  const fallback = new Date(dateStr)
+  return isNaN(fallback.getTime()) ? new Date() : fallback
+}
+
+export function getTimeGreeting(now = new Date()) {
+  const hour = now.getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
 }
 
 export function getTodayStr() {
@@ -122,3 +135,4 @@ export function formatRelativeDay(dateStr) {
   if (diffDays === 1) return 'Yesterday'
   return formatDate(dateStr)
 }
+
