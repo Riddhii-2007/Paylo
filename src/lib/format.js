@@ -59,7 +59,7 @@ export function formatMoneyNoDecimals(minorUnits, currencyCode = 'INR') {
   if (typeof minorUnits !== 'number' || Number.isNaN(minorUnits)) {
     minorUnits = 0
   }
-  const major = Math.floor(toMajorUnits(minorUnits, currencyCode))
+  const major = Math.round(toMajorUnits(minorUnits, currencyCode))
   
   let isIso = true
   try {
@@ -135,4 +135,13 @@ export function formatRelativeDay(dateStr) {
   if (diffDays === 1) return 'Yesterday'
   return formatDate(dateStr)
 }
+
+export function isValidDateString(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return false
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d
+}
+
 

@@ -5,9 +5,13 @@ import { Button } from './Button'
 export function ConfirmDialog({ isOpen, title, description, confirmText = 'Confirm', cancelText = 'Cancel', onConfirm, onCancel, danger = false }) {
   const dialogRef = useRef(null)
   const previousFocusRef = useRef(null)
+  const onCancelRef = useRef(onCancel)
+  onCancelRef.current = onCancel
+  const hasFocusedRef = useRef(false)
 
   useEffect(() => {
     if (!isOpen) {
+      hasFocusedRef.current = false
       if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
         previousFocusRef.current.focus()
       }
@@ -19,7 +23,7 @@ export function ConfirmDialog({ isOpen, title, description, confirmText = 'Confi
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onCancel()
+        onCancelRef.current?.()
         return
       }
 
@@ -51,18 +55,27 @@ export function ConfirmDialog({ isOpen, title, description, confirmText = 'Confi
 
     window.addEventListener('keydown', handleKeyDown)
 
-    const timer = setTimeout(() => {
-      if (dialogRef.current) {
-        const focusable = dialogRef.current.querySelector('button:not([disabled])')
-        if (focusable) focusable.focus()
-      }
-    }, 50)
+    let timer
+    if (!hasFocusedRef.current) {
+      timer = setTimeout(() => {
+        if (dialogRef.current && !dialogRef.current.contains(document.activeElement)) {
+          const autoFocusEl = dialogRef.current.querySelector('[autofocus]')
+          if (autoFocusEl) {
+            autoFocusEl.focus()
+          } else {
+            const focusable = dialogRef.current.querySelector('button:not([disabled]), input:not([disabled])')
+            if (focusable) focusable.focus()
+          }
+        }
+        hasFocusedRef.current = true
+      }, 50)
+    }
 
     return () => {
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onCancel])
+  }, [isOpen])
 
   return (
     <AnimatePresence>

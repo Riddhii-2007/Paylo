@@ -227,4 +227,25 @@ describe('Pace & Daily Budget Logic (calculatePace)', () => {
     expect(result.avgPerDay).toBeNull()
     expect(result.paceMessage).toBeNull()
   })
+
+  it('formats average in the pace line in whole currency units, not decimals (e.g. ₹571/day)', () => {
+    // 400000 paise spent over 7 days = 57142.85 paise per day (₹571.43/day)
+    // Should display as ₹571/day, not ₹571.43/day
+    const cycle = { id: 'c1', startDate: '2026-10-01', income: 1000000, extras: [] }
+    const result = calculatePace({
+      currentCycle: cycle,
+      cycleExpenses: [{ amount: 400000, date: '2026-10-02' }],
+      allCycles: [cycle],
+      today: '2026-10-07', // 7 days elapsed
+      cycleDay: 1,
+      currency: 'INR',
+      remaining: 600000,
+      daysLeft: 24,
+    })
+
+    expect(result.daysElapsed).toBe(7)
+    expect(Math.round(result.avgPerDay)).toBe(57143)
+    expect(result.paceMessage).toMatch(/At ₹\s?571\/day/)
+    expect(result.paceMessage).not.toContain('571.43')
+  })
 })

@@ -1,4 +1,4 @@
-import { parseLocalDate, formatMoney } from './format.js'
+import { parseLocalDate, formatMoney, formatMoneyNoDecimals } from './format.js'
 import { sortCycles, getCycleEndDate, getExpensesForCycle } from './cycle.js'
 
 /**
@@ -134,7 +134,7 @@ export function calculatePace({
 
   if (isCurrentAvg && avgPerDay !== null) {
     projectedLeft = remaining - avgPerDay * daysLeft
-    const avgFormatted = formatMoney(avgPerDay, currency)
+    const avgFormatted = formatMoneyNoDecimals(avgPerDay, currency)
 
     if (projectedLeft >= 0) {
       const projectedFormatted = formatMoney(projectedLeft, currency)

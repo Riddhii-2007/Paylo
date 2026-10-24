@@ -9,7 +9,7 @@ import {
   suggestNextStartDate, validateStartDateEdit, sortCycles,
   checkLowBalance
 } from '../lib/cycle'
-import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate, getTimeGreeting } from '../lib/format'
+import { getTodayStr, formatMoney, formatMoneyNoDecimals, toMinorUnits, parseLocalDate, getTimeGreeting, isValidDateString } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -142,6 +142,12 @@ export function Home() {
   const [newCycleDate, setNewCycleDate] = useState('')
   const [newCycleIncome, setNewCycleIncome] = useState('')
 
+  useEffect(() => {
+    if (isStartCycleOpen && !newCycleDate) {
+      setNewCycleDate(suggestNextStartDate(cycleDay, today))
+    }
+  }, [isStartCycleOpen, newCycleDate, cycleDay, today])
+
   const handleStartNewCycleInit = () => {
     setNewCycleDate(suggestNextStartDate(cycleDay, today))
     setNewCycleIncome('')
@@ -149,6 +155,7 @@ export function Home() {
   }
 
   const handleStartNewCycle = async () => {
+    if (!isValidDateString(newCycleDate)) return
     const inc = toMinorUnits(newCycleIncome, currency)
     if (inc <= 0) return
     await db.cycles.add({ startDate: newCycleDate, income: inc, extras: [] })
@@ -400,9 +407,22 @@ export function Home() {
       <BottomSheet isOpen={isEditCycleOpen} onClose={() => setIsEditCycleOpen(false)}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Edit cycle</h3>
         <div className="flex flex-col gap-6">
-          <Input label="Start Date" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+          <Input 
+            label="Start Date" 
+            type="date" 
+            value={editDate} 
+            onChange={e => setEditDate(e.target.value)} 
+            error={!isValidDateString(editDate) ? 'Enter a valid date' : undefined}
+          />
           <Input label="Total Amount Received" type="number" value={editIncome} onChange={e => setEditIncome(e.target.value)} />
-          <Button onClick={submitCycleEdit} className="mt-2">Save changes</Button>
+          <div>
+            <Button onClick={submitCycleEdit} disabled={!isValidDateString(editDate) || !editIncome} className="w-full mt-2">
+              Save changes
+            </Button>
+            {!isValidDateString(editDate) && (
+              <p className="text-xs text-terracotta text-center mt-2">Enter a valid date to save changes.</p>
+            )}
+          </div>
         </div>
       </BottomSheet>
 
@@ -410,7 +430,13 @@ export function Home() {
       <BottomSheet isOpen={isStartCycleOpen} onClose={() => setIsStartCycleOpen(false)}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Start new cycle</h3>
         <div className="flex flex-col gap-6">
-          <Input label="Start Date" type="date" value={newCycleDate} onChange={e => setNewCycleDate(e.target.value)} />
+          <Input 
+            label="Start Date" 
+            type="date" 
+            value={newCycleDate} 
+            onChange={e => setNewCycleDate(e.target.value)} 
+            error={!isValidDateString(newCycleDate) ? 'Enter a valid date' : undefined}
+          />
           <div>
             <Input label="Amount Received" type="number" placeholder="0" value={newCycleIncome} onChange={e => setNewCycleIncome(e.target.value)} />
             {currentCycle && currentCycle.income > 0 && (
@@ -422,7 +448,21 @@ export function Home() {
               </button>
             )}
           </div>
-          <Button onClick={handleStartNewCycle} disabled={!newCycleDate || !newCycleIncome} className="mt-2">Start Cycle</Button>
+          <div>
+            <Button 
+              onClick={handleStartNewCycle} 
+              disabled={!isValidDateString(newCycleDate) || !newCycleIncome || Number(newCycleIncome) <= 0} 
+              className="w-full mt-2"
+            >
+              Start Cycle
+            </Button>
+            {!isValidDateString(newCycleDate) && (
+              <p className="text-xs text-terracotta text-center mt-2">Enter a valid date to start the cycle.</p>
+            )}
+            {isValidDateString(newCycleDate) && (!newCycleIncome || Number(newCycleIncome) <= 0) && (
+              <p className="text-xs text-navy/60 dark:text-silver-muted text-center mt-2">Enter the amount received to start the cycle.</p>
+            )}
+          </div>
         </div>
       </BottomSheet>
 

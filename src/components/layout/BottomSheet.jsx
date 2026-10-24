@@ -4,10 +4,14 @@ import { useEffect, useRef } from 'react'
 export function BottomSheet({ isOpen, onClose, children }) {
   const sheetRef = useRef(null)
   const previousFocusRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const hasFocusedRef = useRef(false)
 
   useEffect(() => {
     if (!isOpen) {
       document.body.style.overflow = 'unset'
+      hasFocusedRef.current = false
       if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
         previousFocusRef.current.focus()
       }
@@ -20,7 +24,7 @@ export function BottomSheet({ isOpen, onClose, children }) {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onClose()
+        onCloseRef.current?.()
         return
       }
 
@@ -52,23 +56,32 @@ export function BottomSheet({ isOpen, onClose, children }) {
 
     window.addEventListener('keydown', handleKeyDown)
 
-    // Initial focus into modal
-    const timer = setTimeout(() => {
-      if (sheetRef.current) {
-        const focusable = sheetRef.current.querySelector(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-        if (focusable) focusable.focus()
-        else sheetRef.current.focus()
-      }
-    }, 50)
+    // Initial focus into modal: focus once when opened, never steal focus while typing
+    let timer
+    if (!hasFocusedRef.current) {
+      timer = setTimeout(() => {
+        if (sheetRef.current && !sheetRef.current.contains(document.activeElement)) {
+          const autoFocusEl = sheetRef.current.querySelector('[autofocus]')
+          if (autoFocusEl) {
+            autoFocusEl.focus()
+          } else {
+            const focusable = sheetRef.current.querySelector(
+              'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )
+            if (focusable) focusable.focus()
+            else sheetRef.current.focus()
+          }
+        }
+        hasFocusedRef.current = true
+      }, 50)
+    }
 
     return () => {
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       document.body.style.overflow = 'unset'
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   return (
     <AnimatePresence>

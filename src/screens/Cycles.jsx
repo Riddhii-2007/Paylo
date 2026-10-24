@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, AnimatePresence } from 'motion/react'
 import { db } from '../lib/db'
 import { sortCycles, getCycleEndDate, getExpensesForCycle, validateStartDateEdit, findCycleForDate } from '../lib/cycle'
-import { formatMoney, formatDate, getTodayStr, toMinorUnits, toMajorUnits } from '../lib/format'
+import { formatMoney, formatDate, getTodayStr, toMinorUnits, toMajorUnits, isValidDateString } from '../lib/format'
 import { DEFAULT_CATEGORIES, resolveCategory } from '../lib/categories'
 import { PageTransition } from '../components/layout/PageTransition'
 import { Button } from '../components/ui/Button'
@@ -356,9 +356,22 @@ export function Cycles() {
       <BottomSheet isOpen={isEditCycleOpen} onClose={() => setIsEditCycleOpen(false)}>
         <h3 className="font-serif text-2xl text-navy dark:text-gold mb-6">Edit cycle</h3>
         <div className="flex flex-col gap-6">
-          <Input label="Start Date" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+          <Input 
+            label="Start Date" 
+            type="date" 
+            value={editDate} 
+            onChange={e => setEditDate(e.target.value)} 
+            error={!isValidDateString(editDate) ? 'Enter a valid date' : undefined}
+          />
           <Input label="Base Income" type="number" value={editIncome} onChange={e => setEditIncome(e.target.value)} />
-          <Button onClick={submitCycleEdit} className="mt-2">Save changes</Button>
+          <div>
+            <Button onClick={submitCycleEdit} disabled={!isValidDateString(editDate) || !editIncome} className="w-full mt-2">
+              Save changes
+            </Button>
+            {!isValidDateString(editDate) && (
+              <p className="text-xs text-terracotta text-center mt-2">Enter a valid date to save changes.</p>
+            )}
+          </div>
         </div>
       </BottomSheet>
 

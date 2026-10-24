@@ -92,5 +92,34 @@ describe('Format Logic', () => {
       expect(getTimeGreeting(eveningDate)).toBe('Good evening')
     })
   })
+
+  describe('isValidDateString', () => {
+    it('validates YYYY-MM-DD date strings', async () => {
+      const { isValidDateString } = await import('../lib/format')
+      expect(isValidDateString('2026-10-24')).toBe(true)
+      expect(isValidDateString('2026-02-28')).toBe(true)
+      expect(isValidDateString('2026-02-29')).toBe(false) // not a leap year
+      expect(isValidDateString('2024-02-29')).toBe(true) // leap year
+      expect(isValidDateString('')).toBe(false)
+      expect(isValidDateString(null)).toBe(false)
+      expect(isValidDateString(undefined)).toBe(false)
+      expect(isValidDateString('dd-05-0005')).toBe(false)
+      expect(isValidDateString('invalid')).toBe(false)
+    })
+  })
+
+  describe('formatMoneyNoDecimals', () => {
+    it('rounds to whole currency units for display', async () => {
+      const { formatMoneyNoDecimals } = await import('../lib/format')
+      // 57143 paise = ₹571.43 -> rounded to whole unit is ₹571
+      expect(formatMoneyNoDecimals(57143, 'INR')).toMatch(/₹\s?571/)
+      // 57180 paise = ₹571.80 -> rounded to whole unit is ₹572
+      expect(formatMoneyNoDecimals(57180, 'INR')).toMatch(/₹\s?572/)
+      // USD 30.40 -> $30
+      expect(formatMoneyNoDecimals(3040, 'USD')).toBe('$30')
+      // USD 30.60 -> $31
+      expect(formatMoneyNoDecimals(3060, 'USD')).toBe('$31')
+    })
+  })
 })
 
