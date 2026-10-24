@@ -1,5 +1,6 @@
 import { db, initializeSettings } from './db'
-import { getTodayStr } from './format'
+import { getTodayStr, toMajorUnits, getCurrencyFractions } from './format'
+import { DEFAULT_CATEGORIES } from './categories'
 
 const BACKUP_VERSION = 1
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -27,31 +28,92 @@ export async function requestPersistentStorage() {
   return false
 }
 
-// CSV formula injection protection
-function escapeCsvCell(val) {
-  if (typeof val !== 'string') return val
-  if (/^[=+\-@]/.test(val)) {
-    return "'" + val
+export function getCategoryName(categoryId, categories) {
+  if (!categoryId) return 'Other'
+  const found = (categories || []).find(c => c.id === categoryId)
+  if (found && found.name) return found.name
+  const def = DEFAULT_CATEGORIES.find(c => c.id === categoryId)
+  if (def && def.name) return def.name
+  if (typeof categoryId === 'string') {
+    if (/^[=+\-@]/.test(categoryId)) {
+      return categoryId
+    }
+    const cleaned = categoryId
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase())
+      .trim()
+    return cleaned || categoryId
   }
-  // Also escape double quotes
-  return `"${val.replace(/"/g, '""')}"`
+  return 'Other'
 }
 
-export async function exportCsv() {
+// CSV formula injection protection
+function escapeCsvCell(val) {
+  if (val === null || val === undefined) return '""'
+  let str = String(val)
+  if (/^[=+\-@]/.test(str)) {
+    str = "'" + str
+  }
+  // Also escape double quotes
+  return `"${str.replace(/"/g, '""')}"`
+}
+
+export async function exportCsv(overrideCurrency) {
   const expenses = await db.expenses.toArray()
+  const settingsArr = await db.settings.toArray()
   
-  const headers = ['id', 'amount (paise)', 'categoryId', 'note', 'date', 'createdAt']
-  const rows = expenses.map(e => [
-    e.id,
-    e.amount,
-    escapeCsvCell(e.categoryId),
-    escapeCsvCell(e.note),
-    escapeCsvCell(e.date),
-    e.createdAt
-  ].join(','))
+  const currencySetting = settingsArr.find(s => s.key === 'currency')
+  const currency = overrideCurrency || currencySetting?.value || 'INR'
+  const decimals = getCurrencyFractions(currency)
   
-  const csvContent = [headers.join(','), ...rows].join('\n')
+  const catSetting = settingsArr.find(s => s.key === 'categories')
+  const categories = catSetting?.value || DEFAULT_CATEGORIES
+  
+  const headers = ['Date', 'Category', 'Amount', 'Note']
+  const rows = expenses.map(e => {
+    const dateStr = escapeCsvCell(e.date || '')
+    const catName = escapeCsvCell(getCategoryName(e.categoryId, categories))
+    const major = toMajorUnits(e.amount, currency)
+    const amountStr = decimals > 0 ? major.toFixed(decimals) : String(Math.round(major))
+    const noteStr = escapeCsvCell(e.note || '')
+    return [dateStr, catName, amountStr, noteStr].join(',')
+  })
+  
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n')
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+}
+
+export async function detectBackupType(file) {
+  if (!file) throw new Error('No file selected')
+  if (file.size > MAX_FILE_SIZE) throw new Error('File too large (max 5MB)')
+  if (file.size === 0) throw new Error('File is empty')
+
+  // Check if it's plain JSON
+  try {
+    const text = await file.text()
+    const trimmed = text.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed.version !== 'undefined') {
+        return { type: 'plain', text, parsed }
+      }
+    }
+  } catch (e) {
+    // Not valid JSON text
+  }
+
+  // Check if it's binary encrypted file
+  try {
+    const buffer = await file.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    if (bytes.length >= 28) {
+      return { type: 'encrypted', file }
+    }
+  } catch (e) {
+    // Buffer read error
+  }
+
+  throw new Error('Unsupported or invalid backup file. Please select a valid Paylo backup file.')
 }
 
 export async function exportJson() {

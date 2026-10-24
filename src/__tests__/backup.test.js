@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
-import { importJson, exportCsv, exportJson, exportEncryptedJson, importEncryptedJson } from '../lib/backup'
+import { 
+  importJson, 
+  exportCsv, 
+  exportJson, 
+  exportEncryptedJson, 
+  importEncryptedJson,
+  detectBackupType,
+  getCategoryName
+} from '../lib/backup'
 import { db } from '../lib/db'
 import Dexie from 'dexie'
 import 'fake-indexeddb/auto'
@@ -20,8 +28,42 @@ describe('Backup & Export Safety', () => {
     }
   })
 
-  describe('CSV Export Formula Injection Guard', () => {
-    it('escapes cells starting with =, +, -, or @', async () => {
+  describe('CSV Export Format & Safety', () => {
+    it('writes a UTF-8 BOM and correct column headers (Date, Category, Amount, Note)', async () => {
+      await db.expenses.add({ amount: 1000, categoryId: 'food', note: 'lunch', date: '2026-10-04', createdAt: 123 })
+      const blob = await exportCsv()
+      // UTF-8 BOM verification via binary arrayBuffer
+      const buffer = await blob.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      expect(bytes[0]).toBe(0xEF)
+      expect(bytes[1]).toBe(0xBB)
+      expect(bytes[2]).toBe(0xBF)
+
+      // Headers check
+      const text = await blob.text()
+      const lines = text.split('\n')
+      expect(lines[0]).toBe('Date,Category,Amount,Note')
+
+      // Drops id, categoryId, createdAt
+      expect(lines[0]).not.toContain('id')
+      expect(lines[0]).not.toContain('categoryId')
+      expect(lines[0]).not.toContain('createdAt')
+    })
+
+    it('exports an expense stored as 3000 minor units as 30.00 in standard 2-decimal currencies', async () => {
+      await db.settings.put({ key: 'currency', value: 'INR' })
+      await db.expenses.add({ amount: 3000, categoryId: 'food', note: 'lunch', date: '2026-10-04', createdAt: 123 })
+
+      const blob = await exportCsv()
+      const text = await blob.text()
+      const lines = text.split('\n')
+
+      expect(lines[1]).toContain('30.00')
+      expect(lines[1]).not.toContain('₹')
+      expect(lines[1]).not.toContain('3000')
+    })
+
+    it('escapes cells and notes starting with =, +, -, or @', async () => {
       await db.expenses.add({ amount: 1000, categoryId: '=cmd|/c', note: '+something', date: '2026-10-04', createdAt: 123 })
       await db.expenses.add({ amount: 500, categoryId: 'food', note: '-500', date: '2026-10-05', createdAt: 124 })
       await db.expenses.add({ amount: 200, categoryId: 'other', note: '@test', date: '2026-10-06', createdAt: 125 })
@@ -30,11 +72,73 @@ describe('Backup & Export Safety', () => {
       const text = await blob.text()
       const lines = text.split('\n')
       
-      // Line 0 is header
       expect(lines[1]).toContain(`'=cmd|/c`)
       expect(lines[1]).toContain(`'+something`)
       expect(lines[2]).toContain(`'-500`)
       expect(lines[3]).toContain(`'@test`)
+    })
+
+    it('exports zero-decimal currency (JPY) without decimals', async () => {
+      await db.settings.put({ key: 'currency', value: 'JPY' })
+      await db.expenses.add({ amount: 3000, categoryId: 'food', note: 'ramen', date: '2026-10-04', createdAt: 123 })
+
+      const blob = await exportCsv('JPY')
+      const text = await blob.text()
+      const lines = text.split('\n')
+
+      // Should export 3000 directly, not 30.00
+      expect(lines[1]).toContain('3000')
+      expect(lines[1]).not.toContain('30.00')
+    })
+
+    it('exports a deleted category with a sensible name', async () => {
+      // Setup: settings has only Food, but expense has categoryId 'gym-membership' or 'deleted_cat'
+      await db.settings.put({ key: 'categories', value: [{ id: 'food', name: 'Food', emoji: '🍔' }] })
+      await db.expenses.add({ amount: 1500, categoryId: 'gym-membership', note: 'monthly', date: '2026-10-04', createdAt: 123 })
+      await db.expenses.add({ amount: 2000, categoryId: 'deleted_cat', note: 'coffee', date: '2026-10-05', createdAt: 124 })
+
+      const blob = await exportCsv()
+      const text = await blob.text()
+      const lines = text.split('\n')
+
+      expect(lines[1]).toContain('"Gym Membership"')
+      expect(lines[2]).toContain('"Deleted Cat"')
+    })
+  })
+
+  describe('detectBackupType', () => {
+    it('detects plain JSON backups correctly', async () => {
+      const plainPayload = JSON.stringify({ version: 1, settings: [], expenses: [], cycles: [] })
+      const file = {
+        size: plainPayload.length,
+        text: async () => plainPayload
+      }
+      const result = await detectBackupType(file)
+      expect(result.type).toBe('plain')
+      expect(result.parsed.version).toBe(1)
+    })
+
+    it('detects encrypted backups correctly', async () => {
+      const password = 'test-password'
+      const blob = await exportEncryptedJson(password)
+      const buffer = await blob.arrayBuffer()
+      const file = new Blob([buffer], { type: 'application/octet-stream' })
+
+      const result = await detectBackupType(file)
+      expect(result.type).toBe('encrypted')
+    })
+
+    it('rejects wrong file types or malformed files with clear messages', async () => {
+      // Empty file
+      await expect(detectBackupType({ size: 0 })).rejects.toThrow('File is empty')
+
+      // Short file that is neither valid JSON nor valid encrypted binary
+      const badFile = {
+        size: 10,
+        text: async () => 'hello csv',
+        arrayBuffer: async () => new Uint8Array(10).buffer
+      }
+      await expect(detectBackupType(badFile)).rejects.toThrow('Unsupported or invalid backup file')
     })
   })
 

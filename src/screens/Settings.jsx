@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { PageTransition } from '../components/layout/PageTransition'
 import { db } from '../lib/db'
 import { DEFAULT_CATEGORIES, saveCategory, renameCategory, deleteCategoryAndReassign } from '../lib/categories'
@@ -7,7 +7,7 @@ import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { exportJson, importJson, exportCsv, exportEncryptedJson, importEncryptedJson, getBackupReminderStatus } from '../lib/backup'
+import { exportJson, importJson, exportCsv, exportEncryptedJson, importEncryptedJson, getBackupReminderStatus, detectBackupType } from '../lib/backup'
 import { getTodayStr } from '../lib/format'
 import { CURRENCY_PRESETS } from '../lib/constants'
 import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
@@ -53,13 +53,16 @@ export function Settings() {
   const [pinMode, setPinMode] = useState('view') // 'view' | 'set' | 'change'
 
   // --- backup ---
-  const [isImportOpen, setIsImportOpen] = useState(false)
-  const [encExportPass, setEncExportPass] = useState('')
-  const [encExportConfirm, setEncExportConfirm] = useState('')
-  const [isEncExportOpen, setIsEncExportOpen] = useState(false)
-  const [isEncImportOpen, setIsEncImportOpen] = useState(false)
-  const [encImportPass, setEncImportPass] = useState('')
-  const [isEncImportConfirmOpen, setIsEncImportConfirmOpen] = useState(false)
+  const [isBackupOpen, setIsBackupOpen] = useState(false)
+  const [backupWithPassword, setBackupWithPassword] = useState(true)
+  const [backupPass, setBackupPass] = useState('')
+  const [backupConfirmPass, setBackupConfirmPass] = useState('')
+
+  const [isRestoreConfirmOpen, setIsRestoreConfirmOpen] = useState(false)
+  const [isRestorePasswordOpen, setIsRestorePasswordOpen] = useState(false)
+  const [restorePassword, setRestorePassword] = useState('')
+  const [pendingRestoreFile, setPendingRestoreFile] = useState(null)
+  const restoreFileInputRef = useRef(null)
 
   useEffect(() => {
     if (settingsArr) {
@@ -187,54 +190,82 @@ export function Settings() {
   }
 
   // ---------- Backup ----------
-  const handleExportJson = async () => {
-    try {
-      const blob = await exportJson()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `paylo-backup-${getTodayStr()}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (e) { alert(e.message) }
+  const handleDoBackup = async () => {
+    if (backupWithPassword) {
+      if (!backupPass) { alert('Please enter a password.'); return }
+      if (backupPass !== backupConfirmPass) { alert('Passwords do not match.'); return }
+      try {
+        const blob = await exportEncryptedJson(backupPass)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `paylo-encrypted-backup-${getTodayStr()}.bin`
+        a.click()
+        URL.revokeObjectURL(url)
+        setBackupPass('')
+        setBackupConfirmPass('')
+        setIsBackupOpen(false)
+      } catch (e) { alert('Encryption failed: ' + e.message) }
+    } else {
+      try {
+        const blob = await exportJson()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `paylo-backup-${getTodayStr()}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+        setIsBackupOpen(false)
+      } catch (e) { alert('Export failed: ' + e.message) }
+    }
   }
 
-  const handleExportEncrypted = async () => {
-    if (!encExportPass) { alert('Please enter a password.'); return }
-    if (encExportPass !== encExportConfirm) { alert('Passwords do not match.'); return }
-    try {
-      const blob = await exportEncryptedJson(encExportPass)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `paylo-encrypted-backup-${getTodayStr()}.bin`
-      a.click()
-      URL.revokeObjectURL(url)
-      setEncExportPass(''); setEncExportConfirm(''); setIsEncExportOpen(false)
-    } catch (e) { alert('Encryption failed: ' + e.message) }
-  }
-
-  const handleImportJson = async (e) => {
+  const handleRestoreFileSelected = async (e) => {
     const file = e.target.files[0]
     if (!file) return
     try {
-      await importJson(file)
-      alert('Import successful!')
-      setIsImportOpen(false)
-    } catch (e) { alert('Import failed: ' + e.message) }
-    finally { e.target.value = '' }
+      const detection = await detectBackupType(file)
+      if (detection.type === 'plain') {
+        await importJson(file)
+        alert('Backup restored successfully!')
+      } else if (detection.type === 'encrypted') {
+        setPendingRestoreFile(file)
+        setRestorePassword('')
+        setIsRestorePasswordOpen(true)
+      }
+    } catch (err) {
+      alert('Restore failed: ' + err.message)
+    } finally {
+      e.target.value = ''
+    }
   }
 
-  const handleImportEncrypted = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+  const handleConfirmRestorePassword = async () => {
+    if (!restorePassword) {
+      alert('Please enter your backup password.')
+      return
+    }
     try {
-      await importEncryptedJson(file, encImportPass)
-      alert('Encrypted backup imported successfully!')
-      setIsEncImportOpen(false)
-      setEncImportPass('')
-    } catch (e) { alert('Import failed: ' + e.message) }
-    finally { e.target.value = '' }
+      await importEncryptedJson(pendingRestoreFile, restorePassword)
+      alert('Encrypted backup restored successfully!')
+      setIsRestorePasswordOpen(false)
+      setPendingRestoreFile(null)
+      setRestorePassword('')
+    } catch (err) {
+      alert('Restore failed: ' + err.message)
+    }
+  }
+
+  const handleExportCsv = async () => {
+    try {
+      const blob = await exportCsv()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `paylo-expenses-${getTodayStr()}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) { alert('Export failed: ' + e.message) }
   }
 
   const handleConfirmReset = async () => {
@@ -362,60 +393,37 @@ export function Settings() {
         </div>
 
         <div className="flex flex-col gap-3">
-          {/* Plain JSON export */}
+          {/* 1. Back up */}
           <Button
             variant="ghost"
             className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5"
-            onClick={handleExportJson}
+            onClick={() => setIsBackupOpen(true)}
           >
-            Export Backup (JSON, unencrypted)
+            Back up
           </Button>
 
-          {/* Encrypted export */}
+          {/* 2. Restore */}
           <Button
             variant="ghost"
             className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5"
-            onClick={() => setIsEncExportOpen(true)}
+            onClick={() => setIsRestoreConfirmOpen(true)}
           >
-            Export Encrypted Backup (AES-GCM)
+            Restore
           </Button>
 
-          {/* Plain import */}
-          <Button
-            variant="ghost"
-            className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5"
-            onClick={() => setIsImportOpen(true)}
-          >
-            Import Backup (JSON)
-          </Button>
-
-          {/* Encrypted import */}
-          <Button
-            variant="ghost"
-            className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5"
-            onClick={() => setIsEncImportOpen(true)}
-          >
-            Import Encrypted Backup
-          </Button>
-
-          {/* CSV */}
-          <Button
-            variant="ghost"
-            className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5"
-            onClick={async () => {
-              try {
-                const blob = await exportCsv()
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `paylo-expenses-${getTodayStr()}.csv`
-                a.click()
-                URL.revokeObjectURL(url)
-              } catch (e) { alert(e.message) }
-            }}
-          >
-            Export Expenses (CSV)
-          </Button>
+          {/* 3. Export to spreadsheet (CSV) */}
+          <div>
+            <Button
+              variant="ghost"
+              className="w-full justify-start bg-cream-surface dark:bg-navy-surface border border-navy/5 dark:border-gold/5"
+              onClick={handleExportCsv}
+            >
+              Export to spreadsheet (CSV)
+            </Button>
+            <p className="text-xs text-navy/60 dark:text-silver-muted mt-1 px-1">
+              Note: Spreadsheet files cannot be restored into Paylo.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -556,56 +564,80 @@ export function Settings() {
         )}
       </BottomSheet>
 
-      {/* Encrypted Export sheet */}
-      <BottomSheet isOpen={isEncExportOpen} onClose={() => { setIsEncExportOpen(false); setEncExportPass(''); setEncExportConfirm('') }}>
-        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-2">Encrypted Backup</h3>
-        <p className="text-xs text-navy/60 dark:text-silver-muted mb-1">Uses AES-256-GCM encryption.</p>
-        <div className="bg-terracotta/10 border border-terracotta/20 rounded-xl p-3 mb-5 text-xs text-terracotta">
-          ⚠️ If you forget this password, your backup cannot be recovered. There is no reset option.
-        </div>
+      {/* Back up sheet */}
+      <BottomSheet isOpen={isBackupOpen} onClose={() => { setIsBackupOpen(false); setBackupPass(''); setBackupConfirmPass('') }}>
+        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-2">Back up</h3>
+        <p className="text-xs text-navy/60 dark:text-silver-muted mb-4">Export all your cycles, expenses, and settings to a file.</p>
+        
         <div className="flex flex-col gap-5">
-          <Input
-            label="Password"
-            type="password"
-            placeholder="Enter a strong password"
-            value={encExportPass}
-            onChange={e => setEncExportPass(e.target.value)}
-          />
-          <Input
-            label="Confirm Password"
-            type="password"
-            placeholder="Repeat password"
-            value={encExportConfirm}
-            onChange={e => setEncExportConfirm(e.target.value)}
-          />
-          <Button
-            disabled={!encExportPass || encExportPass !== encExportConfirm}
-            onClick={handleExportEncrypted}
-          >
-            Download Encrypted Backup
-          </Button>
+          <label className="flex items-center justify-between cursor-pointer py-1 border-b border-navy/10 dark:border-gold/10 pb-3">
+            <span className="text-sm font-medium text-navy dark:text-cream">Protect with a password</span>
+            <input
+              type="checkbox"
+              checked={backupWithPassword}
+              onChange={e => setBackupWithPassword(e.target.checked)}
+              className="accent-gold w-5 h-5 cursor-pointer"
+            />
+          </label>
+
+          {backupWithPassword ? (
+            <>
+              <div className="bg-terracotta/10 border border-terracotta/20 rounded-xl p-3 text-xs text-terracotta">
+                ⚠️ If you forget this password, your backup cannot be recovered. There is no reset option.
+              </div>
+              <Input
+                label="Password"
+                type="password"
+                placeholder="Enter a strong password"
+                value={backupPass}
+                onChange={e => setBackupPass(e.target.value)}
+              />
+              <Input
+                label="Confirm Password"
+                type="password"
+                placeholder="Repeat password"
+                value={backupConfirmPass}
+                onChange={e => setBackupConfirmPass(e.target.value)}
+              />
+              <Button
+                disabled={!backupPass || backupPass !== backupConfirmPass}
+                onClick={handleDoBackup}
+              >
+                Download Encrypted Backup
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-navy/60 dark:text-silver-muted">
+                Creates an unencrypted JSON backup. Anyone with this file can view your transactions.
+              </p>
+              <Button onClick={handleDoBackup}>
+                Download Backup
+              </Button>
+            </>
+          )}
         </div>
       </BottomSheet>
 
-      {/* Encrypted Import sheet */}
-      <BottomSheet isOpen={isEncImportOpen} onClose={() => { setIsEncImportOpen(false); setEncImportPass('') }}>
-        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-2">Import Encrypted Backup</h3>
-        <p className="text-xs text-navy/60 dark:text-silver-muted mb-5">
-          Enter the password you used when exporting. This will replace all current data.
+      {/* Restore Password sheet */}
+      <BottomSheet isOpen={isRestorePasswordOpen} onClose={() => { setIsRestorePasswordOpen(false); setPendingRestoreFile(null); setRestorePassword('') }}>
+        <h3 className="font-serif text-2xl text-navy dark:text-gold mb-2">Enter Backup Password</h3>
+        <p className="text-xs text-navy/60 dark:text-silver-muted mb-4">
+          This backup is encrypted with AES-256-GCM. Enter the password you used during export to decrypt and restore it.
         </p>
         <div className="flex flex-col gap-5">
           <Input
             label="Backup Password"
             type="password"
             placeholder="Password used during export"
-            value={encImportPass}
-            onChange={e => setEncImportPass(e.target.value)}
+            value={restorePassword}
+            onChange={e => setRestorePassword(e.target.value)}
           />
           <Button
-            disabled={!encImportPass}
-            onClick={() => { setIsEncImportOpen(false); setIsEncImportConfirmOpen(true) }}
+            disabled={!restorePassword}
+            onClick={handleConfirmRestorePassword}
           >
-            Continue to File Picker
+            Decrypt &amp; Restore
           </Button>
         </div>
       </BottomSheet>
@@ -647,32 +679,28 @@ export function Settings() {
         onCancel={() => setIsResetOpen(false)}
       />
 
-      {/* Plain import confirm */}
+      {/* Restore confirm */}
       <ConfirmDialog
-        isOpen={isImportOpen}
+        isOpen={isRestoreConfirmOpen}
         title="Replace all data?"
-        description="Importing a backup will permanently replace all your current expenses, cycles, and settings. Are you sure?"
+        description="Restoring a backup will permanently replace all your current expenses, cycles, and settings. Are you sure?"
         confirmText="Yes, choose file"
         cancelText="Cancel"
         danger={true}
-        onConfirm={() => document.getElementById('import-file-input').click()}
-        onCancel={() => setIsImportOpen(false)}
+        onConfirm={() => {
+          setIsRestoreConfirmOpen(false)
+          restoreFileInputRef.current?.click()
+        }}
+        onCancel={() => setIsRestoreConfirmOpen(false)}
       />
 
-      {/* Encrypted import confirm */}
-      <ConfirmDialog
-        isOpen={isEncImportConfirmOpen}
-        title="Replace all data?"
-        description="Importing will permanently replace all current data. This action cannot be undone."
-        confirmText="Yes, choose file"
-        cancelText="Cancel"
-        danger={true}
-        onConfirm={() => document.getElementById('enc-import-file-input').click()}
-        onCancel={() => setIsEncImportConfirmOpen(false)}
+      <input
+        ref={restoreFileInputRef}
+        type="file"
+        accept=".json,.bin,.enc,application/json,application/octet-stream"
+        className="hidden"
+        onChange={handleRestoreFileSelected}
       />
-
-      <input type="file" id="import-file-input" accept=".json" className="hidden" onChange={handleImportJson} />
-      <input type="file" id="enc-import-file-input" accept=".bin" className="hidden" onChange={handleImportEncrypted} />
     </PageTransition>
   )
 }
