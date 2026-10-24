@@ -226,6 +226,7 @@ export function Cycles() {
                     <button 
                       onClick={(e) => handleEditCycleInit(e, c)}
                       className="p-2 -mr-2 text-navy/50 hover:text-navy dark:text-silver-muted dark:hover:text-gold transition-colors"
+                      aria-label="Edit cycle"
                     >
                       <EditIcon className="w-4 h-4" />
                     </button>
@@ -252,8 +253,8 @@ export function Cycles() {
                       se.isCurrentCycle
                         ? 'bg-gold/10 border border-gold/20 text-navy/70 dark:text-gold/80'
                         : se.delta >= 0
-                          ? 'bg-teal/10 border border-teal/20 text-teal-dark dark:text-teal-400'
-                          : 'bg-terracotta/10 border border-terracotta/20 text-terracotta dark:text-red-400'
+                          ? 'bg-teal/10 border border-teal/20 text-teal-dark dark:text-teal-light'
+                          : 'bg-terracotta/10 border border-terracotta/20 text-terracotta dark:text-terracotta-light'
                     }`}>
                       <span>
                         {se.isCurrentCycle
@@ -330,7 +331,7 @@ export function Cycles() {
                                     </button>
                                     <button 
                                       onClick={() => setDeleteAdditionConfirm({ cycle: c, index: idx })}
-                                      className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-200"
+                                      className="w-11 h-11 flex items-center justify-center text-terracotta dark:text-terracotta-light hover:text-terracotta-dark dark:hover:text-terracotta"
                                       aria-label="Delete extra money"
                                     >
                                       <TrashIcon className="w-4 h-4" />

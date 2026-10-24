@@ -8,7 +8,7 @@ import { BottomSheet } from '../components/layout/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { exportJson, importJson, exportCsv, exportEncryptedJson, importEncryptedJson, getBackupReminderStatus } from '../lib/backup'
-import { formatDate, getTodayStr } from '../lib/format'
+import { getTodayStr } from '../lib/format'
 import { CURRENCY_PRESETS } from '../lib/constants'
 import { CurrencyPickerSheet } from '../components/CurrencyPickerSheet'
 import { PayDayPickerSheet } from '../components/PayDayPickerSheet'
@@ -43,6 +43,7 @@ export function Settings() {
 
   // --- preferences ---
   const [lowBalanceStr, setLowBalanceStr] = useState('')
+  const [lowBalanceSaved, setLowBalanceSaved] = useState(false)
   const [openingSavingsStr, setOpeningSavingsStr] = useState('')
 
   // --- PIN ---
@@ -153,10 +154,11 @@ export function Settings() {
 
   // ---------- Low Balance ----------
   const handleSaveLowBalance = async () => {
-    if (!lowBalanceStr) { await db.settings.put({ key: 'lowBalanceWarning', value: null }); return }
+    if (!lowBalanceStr) { await db.settings.put({ key: 'lowBalanceWarning', value: null }); setLowBalanceSaved(true); return }
     const val = parseFloat(lowBalanceStr)
     if (isNaN(val) || val < 0) return
     await db.settings.put({ key: 'lowBalanceWarning', value: Math.round(val * 100) })
+    setLowBalanceSaved(true)
   }
 
   // ---------- Opening Savings ----------
@@ -331,7 +333,7 @@ export function Settings() {
               {cat.id !== 'other' && (
                 <div className="flex -mr-2">
                   <button onClick={() => handleOpenEdit(cat)} className="w-11 h-11 flex items-center justify-center text-navy/60 hover:text-navy dark:text-silver-muted dark:hover:text-gold" aria-label="Edit category"><EditIcon className="w-5 h-5" /></button>
-                  <button onClick={() => handleDeleteRequest(cat)} className="w-11 h-11 flex items-center justify-center text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-200" aria-label="Delete category"><TrashIcon className="w-5 h-5" /></button>
+                  <button onClick={() => handleDeleteRequest(cat)} className="w-11 h-11 flex items-center justify-center text-terracotta dark:text-terracotta-light hover:text-terracotta-dark dark:hover:text-terracotta" aria-label="Delete category"><TrashIcon className="w-5 h-5" /></button>
                 </div>
               )}
             </div>
@@ -426,7 +428,8 @@ export function Settings() {
           <div>
             <label className="text-sm font-medium text-navy/80 dark:text-cream block mb-1">Low Balance Warning</label>
             <p className="text-xs text-navy/60 dark:text-silver-muted mb-2">Show a warning on Home when remaining budget falls below this amount.</p>
-            <Input type="number" placeholder="0" value={lowBalanceStr} onChange={e => setLowBalanceStr(e.target.value)} onBlur={handleSaveLowBalance} />
+            <Input type="number" placeholder="0" value={lowBalanceStr} onChange={e => { setLowBalanceStr(e.target.value); setLowBalanceSaved(false) }} onBlur={handleSaveLowBalance} />
+            {lowBalanceSaved && <p className="text-xs text-teal-dark dark:text-teal-light mt-1">Saved</p>}
           </div>
 
           {/* Opening Savings */}

@@ -13,6 +13,7 @@
   --color-terracotta-dark: #7D3422;
   --color-terracotta-light: #DB8E7D;
   --color-teal: #5B8A8A;
+  --color-teal-dark: #3B6161;
   --color-teal-light: #94BCBC;
   --color-sand: #D4B896;
 
@@ -25,6 +26,11 @@
 @layer base {
   body {
     @apply bg-cream dark:bg-navy text-navy dark:text-cream font-sans antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
   }
 }
 
