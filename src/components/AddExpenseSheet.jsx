@@ -105,8 +105,11 @@ export function AddExpenseSheet({ isOpen, onClose, currency, initialExpense = nu
           const openingSavings = openingSavingsSettings ? openingSavingsSettings.value : 0
           
           const savingsObj = computeSavings(allCycles, allExpenses, openingSavings, cycleDay, getTodayStr())
-          const availableSavings = savingsObj.totalSaved
-          const deficit = minor - remaining
+          // totalSaved = committed savings from finished cycles (+ opening).
+          // savingsBeingUsed = savings already consumed by the current cycle's
+          // existing deficit. Subtract that to get what's still available for
+          // a *new* expense.
+          const availableSavings = Math.max(0, savingsObj.totalSaved - savingsObj.savingsBeingUsed)
           
           let title, description, confirmText, isBlocker
           

@@ -7,8 +7,7 @@ import {
   processAttempt,
   initialRateLimitState,
   isLockedOut,
-  MAX_ATTEMPTS,
-  LOCKOUT_SECONDS
+  MAX_ATTEMPTS
 } from '../lib/pinAuth'
 
 export function PinLockScreen({ onUnlock }) {

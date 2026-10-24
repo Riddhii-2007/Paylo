@@ -19,6 +19,8 @@ export function BottomNav({ activeTab, onTabChange }) {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
+              aria-label={tab.label}
+              aria-current={isActive ? 'page' : undefined}
               className={`flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${
                 isActive ? 'text-gold-dark dark:text-gold' : 'text-navy/50 dark:text-silver-muted hover:text-navy/80 dark:hover:text-silver'
               }`}

@@ -12,6 +12,7 @@ import { Cycles } from './screens/Cycles'
 import { History } from './screens/History'
 import { Settings } from './screens/Settings'
 import { PinLockScreen } from './components/PinLockScreen'
+import { PwaReloadToast } from './components/PwaReloadToast'
 
 // A simple hash router hook
 function useHashRouter() {
@@ -30,14 +31,6 @@ function useHashRouter() {
   }
 
   return [hash, navigate]
-}
-
-function PlaceholderPage({ title }) {
-  return (
-    <PageTransition className="flex-1 flex items-center justify-center min-h-screen">
-      <h2 className="font-serif text-2xl text-navy/50 dark:text-silver-muted">{title}</h2>
-    </PageTransition>
-  )
 }
 
 function App() {
@@ -64,6 +57,7 @@ function App() {
 
   return (
     <div className="mx-auto w-full max-w-[480px] h-[100vh] h-[100dvh] overflow-hidden relative border-x border-navy/5 dark:border-gold/10 flex flex-col bg-cream dark:bg-navy text-navy dark:text-cream transition-colors duration-300 transform-gpu">
+      <PwaReloadToast />
       {isLocked && <PinLockScreen onUnlock={unlock} />}
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative pb-32">
         <AnimatePresence mode="wait">
